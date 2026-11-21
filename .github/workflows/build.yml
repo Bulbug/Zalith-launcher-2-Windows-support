@@ -1,0 +1,84 @@
+name: Build desktop launcher (Windows)
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Folder that contains settings.gradle.kts / gradlew (".": the project is the repo root).
+  # If you put this project inside a subfolder of a bigger repo, set it to that folder name.
+  PROJECT_DIR: .
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write   # needed to attach files to a release
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT_DIR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle (with cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      # Compiles everything and builds the portable app folder (includes its own Java).
+      - name: Build portable app
+        run: .\gradlew.bat --no-daemon createDistributable
+
+      # One runnable .jar (needs Java installed to run it).
+      - name: Build uber jar
+        run: .\gradlew.bat --no-daemon packageUberJarForCurrentOS
+
+      # .exe / .msi installers. WiX is preinstalled on GitHub's Windows runners,
+      # but if this step fails it won't fail the whole build.
+      - name: Build installers (optional)
+        continue-on-error: true
+        run: .\gradlew.bat --no-daemon packageExe packageMsi
+
+      - name: Zip portable app
+        run: Compress-Archive -Path build/compose/binaries/main/app/DeskLauncher -DestinationPath DeskLauncher-windows-portable.zip
+
+      - name: Upload portable app
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeskLauncher-windows-portable
+          path: ${{ env.PROJECT_DIR }}/DeskLauncher-windows-portable.zip
+
+      - name: Upload uber jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeskLauncher-jar
+          path: ${{ env.PROJECT_DIR }}/build/compose/jars/*.jar
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeskLauncher-installers
+          path: |
+            ${{ env.PROJECT_DIR }}/build/compose/binaries/main/exe/*.exe
+            ${{ env.PROJECT_DIR }}/build/compose/binaries/main/msi/*.msi
+          if-no-files-found: ignore
+
+      # Pushing a tag like v0.1.0 publishes a GitHub Release with the files.
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.PROJECT_DIR }}/DeskLauncher-windows-portable.zip
+            ${{ env.PROJECT_DIR }}/build/compose/jars/*.jar
+            ${{ env.PROJECT_DIR }}/build/compose/binaries/main/exe/*.exe
+            ${{ env.PROJECT_DIR }}/build/compose/binaries/main/msi/*.msi

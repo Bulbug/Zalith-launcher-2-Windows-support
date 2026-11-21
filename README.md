@@ -60,3 +60,9 @@ Mods go in the **Mods folder** button's location.
 
 Not yet (phase 3+): Forge/NeoForge/OptiFine, mod and modpack browser (Modrinth/CurseForge),
 multiple instances, Zalith's UI screens.
+
+## Automatic builds (GitHub Actions)
+
+`.github/workflows/build.yml` builds the app on a Windows runner on every push, and uploads
+the portable zip, the .jar and the installers as artifacts (Actions tab -> the run -> Artifacts).
+Push a tag like `v0.1.0` to publish them as a GitHub Release.
