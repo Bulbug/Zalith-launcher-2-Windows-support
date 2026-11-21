@@ -9,7 +9,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "${AppInfo.NAME} - ${AppInfo.NOTICE}",
-        state = rememberWindowState(width = 1000.dp, height = 620.dp),
+        state = rememberWindowState(width = 1050.dp, height = 720.dp),
     ) {
         App()
     }

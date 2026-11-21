@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -20,8 +23,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,8 +43,35 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+
+private fun openBrowser(url: String) {
+    try {
+        if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().browse(java.net.URI(url))
+    } catch (_: Exception) {
+    }
+}
+
+private fun openFolder(dir: File) {
+    dir.mkdirs()
+    try {
+        if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(dir)
+    } catch (_: Exception) {
+    }
+}
+
+@Composable
+private fun RadioRow(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected = selected, onClick = onClick, enabled = enabled)
+        Text(label)
+        Spacer(Modifier.width(8.dp))
+    }
+}
 
 @Composable
 fun App() {
@@ -57,6 +89,14 @@ fun LauncherScreen() {
 
     var username by remember { mutableStateOf(saved.username) }
     var ram by remember { mutableStateOf(saved.ramMb.toString()) }
+    var loader by remember {
+        mutableStateOf(runCatching { LoaderKind.valueOf(saved.loader) }.getOrDefault(LoaderKind.VANILLA))
+    }
+    var accountMode by remember { mutableStateOf(saved.account) }
+    var msAccount by remember { mutableStateOf(AccountStore.load()) }
+    var deviceCode by remember { mutableStateOf<DeviceCode?>(null) }
+    var signInJob by remember { mutableStateOf<Job?>(null) }
+
     var showAll by remember { mutableStateOf(false) }
     var versions by remember { mutableStateOf<List<VersionEntry>>(emptyList()) }
     var selectedId by remember { mutableStateOf(saved.version) }
@@ -93,22 +133,69 @@ fun LauncherScreen() {
         if (showAll) versions else versions.filter { it.type == "release" }
     }
 
+    fun signIn() {
+        if (signInJob?.isActive == true) return
+        signInJob = scope.launch {
+            try {
+                status = "Contacting Microsoft…"
+                val dc = withContext(Dispatchers.IO) { MicrosoftAuth.requestDeviceCode() }
+                deviceCode = dc
+                openBrowser(dc.verificationUri)
+                val tokens = withContext(Dispatchers.IO) {
+                    MicrosoftAuth.pollForToken(dc) { !isActive }
+                }
+                status = "Signing in to Xbox and Minecraft…"
+                val session = withContext(Dispatchers.IO) { MicrosoftAuth.minecraftSession(tokens.access) }
+                val stored = StoredAccount(session.name, session.uuid, tokens.refresh)
+                AccountStore.save(stored)
+                msAccount = stored
+                status = "Signed in as ${session.name}"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status = "Sign-in failed: ${e.message}"
+            } finally {
+                deviceCode = null
+            }
+        }
+    }
+
+    fun cancelSignIn() {
+        signInJob?.cancel()
+        deviceCode = null
+        status = "Sign-in cancelled"
+    }
+
     fun play() {
         val entry = versions.firstOrNull { it.id == selectedId } ?: return
         val name = username.trim()
-        if (!Regex("[A-Za-z0-9_]{3,16}").matches(name)) {
+        val microsoft = accountMode == "microsoft"
+        if (microsoft) {
+            if (AccountStore.load() == null) {
+                status = "Sign in with Microsoft first"
+                return
+            }
+        } else if (!Regex("[A-Za-z0-9_]{3,16}").matches(name)) {
             status = "Username must be 3-16 letters, numbers or _"
             return
         }
         val ramMb = ram.toIntOrNull()?.coerceIn(512, 32768) ?: 2048
-        Settings(name, ramMb, entry.id).save()
+        Settings(name, ramMb, entry.id, loader.name, accountMode).save()
 
         busy = true
         log.clear()
         scope.launch {
             try {
+                val account = if (microsoft) {
+                    status = "Refreshing Microsoft login…"
+                    val stored = AccountStore.load() ?: throw AuthException("Sign in with Microsoft first")
+                    withContext(Dispatchers.IO) { MicrosoftAuth.accountFromStored(stored) }
+                } else {
+                    Account.offline(name)
+                }
                 val inst = GameInstaller.install(
                     entry,
+                    loader,
                     status = { status = it },
                     progress = { d, t -> progress = if (t > 0) d.toFloat() / t else null },
                 )
@@ -118,7 +205,7 @@ fun LauncherScreen() {
                     JavaRuntime.ensure(inst.javaMajor) { status = it }
                 }
                 status = "Launching…"
-                val cmd = GameLauncher.buildCommand(inst, java, Account.offline(name), ramMb)
+                val cmd = GameLauncher.buildCommand(inst, java, account, ramMb)
                 val proc = withContext(Dispatchers.IO) {
                     GameLauncher.start(cmd) { line ->
                         scope.launch(Dispatchers.Main) { addLog(line) }
@@ -139,26 +226,74 @@ fun LauncherScreen() {
         }
     }
 
+    // ---- Microsoft device-code dialog ----
+    val dc = deviceCode
+    if (dc != null) {
+        AlertDialog(
+            onDismissRequest = { cancelSignIn() },
+            title = { Text("Sign in with Microsoft") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("1. Open ${dc.verificationUri} (we tried to open it for you).")
+                    Text("2. Enter this code:")
+                    Text(dc.userCode, style = MaterialTheme.typography.headlineMedium, fontFamily = FontFamily.Monospace)
+                    Text("This window closes by itself when you're signed in.")
+                }
+            },
+            confirmButton = { Button(onClick = { openBrowser(dc.verificationUri) }) { Text("Open page") } },
+            dismissButton = { TextButton(onClick = { cancelSignIn() }) { Text("Cancel") } },
+        )
+    }
+
     Row(Modifier.fillMaxSize().padding(20.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         // ---- left: controls ----
-        Column(Modifier.width(320.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            Modifier.width(330.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             Text(AppInfo.NAME, style = MaterialTheme.typography.headlineMedium)
             Text(
                 "${AppInfo.NOTICE} - v${AppInfo.VERSION}",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
 
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text("Username (offline)") },
-                singleLine = true,
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            // account
+            Row {
+                RadioRow("Offline", accountMode == "offline", !busy) { accountMode = "offline" }
+                RadioRow("Microsoft", accountMode == "microsoft", !busy) { accountMode = "microsoft" }
+            }
+            if (accountMode == "offline") {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                val ms = msAccount
+                if (ms != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Signed in: ${ms.name}", Modifier.weight(1f))
+                        TextButton(
+                            onClick = {
+                                AccountStore.clear()
+                                msAccount = null
+                            },
+                            enabled = !busy,
+                        ) { Text("Sign out") }
+                    }
+                } else {
+                    Button(onClick = { signIn() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                        Text("Sign in with Microsoft")
+                    }
+                }
+            }
 
+            // version
             Column {
                 OutlinedButton(
                     onClick = { menuOpen = true },
@@ -179,10 +314,17 @@ fun LauncherScreen() {
                     }
                 }
             }
-
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = showAll, onCheckedChange = { showAll = it }, enabled = !busy)
                 Text("Show snapshots and old versions")
+            }
+
+            // mod loader
+            Text("Mod loader", style = MaterialTheme.typography.labelLarge)
+            Row {
+                LoaderKind.values().forEach { k ->
+                    RadioRow(k.label, loader == k, !busy) { loader = k }
+                }
             }
 
             OutlinedTextField(
@@ -208,6 +350,11 @@ fun LauncherScreen() {
                 else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
             Text(status, style = MaterialTheme.typography.bodyMedium)
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { openFolder(Dirs.game) }) { Text("Game folder") }
+                OutlinedButton(onClick = { openFolder(File(Dirs.game, "mods")) }) { Text("Mods folder") }
+            }
         }
 
         // ---- right: game log ----

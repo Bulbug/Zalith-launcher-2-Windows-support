@@ -25,6 +25,8 @@ data class Settings(
     val username: String = "Player",
     val ramMb: Int = 2048,
     val version: String = "",
+    val loader: String = "VANILLA",
+    val account: String = "offline", // "offline" or "microsoft"
 ) {
     fun save() {
         Dirs.root.mkdirs()
@@ -32,6 +34,8 @@ data class Settings(
         p.setProperty("username", username)
         p.setProperty("ram", ramMb.toString())
         p.setProperty("version", version)
+        p.setProperty("loader", loader)
+        p.setProperty("account", account)
         File(Dirs.root, "settings.properties").outputStream().use { p.store(it, null) }
     }
 
@@ -45,6 +49,8 @@ data class Settings(
                 username = p.getProperty("username", "Player"),
                 ramMb = p.getProperty("ram", "2048").toIntOrNull() ?: 2048,
                 version = p.getProperty("version", ""),
+                loader = p.getProperty("loader", "VANILLA"),
+                account = p.getProperty("account", "offline"),
             )
         }
     }

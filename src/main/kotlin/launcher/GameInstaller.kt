@@ -10,31 +10,51 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.ZipFile
 
 /** Everything the launcher needs after a version has been downloaded. */
 class Installed(
-    val id: String,
-    val json: JsonObject,
+    val id: String,                       // used as ${version_name}
+    val json: JsonObject,                 // merged version JSON (vanilla + loader)
     val javaMajor: Int,
-    val classpath: List<File>,   // libraries, in order
+    val libs: List<Pair<String, File>>,   // (group:artifact[:classifier], jar), in classpath order
     val clientJar: File,
     val nativesDir: File,
     val assetsIndexId: String,
-    val virtualAssetsDir: File?, // only for very old versions
+    val virtualAssetsDir: File?,          // only for very old versions
     val logConfig: File?,
     val logArg: String?,
 )
 
 private class Dl(val url: String, val dest: File, val sha1: String?)
 
+private class LibPlan {
+    val tasks = mutableListOf<Dl>()
+    val libs = mutableListOf<Pair<String, File>>()
+    val nativeJars = mutableListOf<Pair<File, List<String>>>()
+}
+
 object GameInstaller {
 
     suspend fun install(
         entry: VersionEntry,
+        loader: LoaderKind,
         status: (String) -> Unit,
         progress: (done: Int, total: Int) -> Unit,
+    ): Installed {
+        val base = installVanilla(entry, status, progress)
+        if (loader == LoaderKind.VANILLA) return base
+        return addLoader(base, entry, loader, status, progress)
+    }
+
+    // ------------------------------------------------------------------ vanilla
+
+    private suspend fun installVanilla(
+        entry: VersionEntry,
+        status: (String) -> Unit,
+        progress: (Int, Int) -> Unit,
     ): Installed = withContext(Dispatchers.IO) {
         val id = entry.id
         val vdir = File(Dirs.versions, id)
@@ -44,10 +64,6 @@ object GameInstaller {
         Http.download(entry.url, vjson, entry.sha1)
         val json = parseJson(vjson.readText())
 
-        if (json.has("inheritsFrom")) {
-            error("Modded versions (Fabric/Forge) aren't supported yet - that's phase 2.")
-        }
-
         // ---- client jar ----
         val client = json.obj("downloads")?.obj("client") ?: error("This version has no client download")
         val clientJar = File(vdir, "$id.jar")
@@ -55,49 +71,12 @@ object GameInstaller {
         Http.download(client.str("url")!!, clientJar, client.str("sha1"))
 
         // ---- libraries ----
-        val libTasks = mutableListOf<Dl>()
-        val classpath = mutableListOf<File>()
-        val nativeJars = mutableListOf<Pair<File, List<String>>>()
-
-        for (e in json.arr("libraries") ?: JsonArray()) {
-            val lib = e.asJsonObject
-            if (!Rules.allowed(lib.arr("rules"))) continue
-            val name = lib.str("name") ?: continue
-            val downloads = lib.obj("downloads")
-            val artifact = downloads?.obj("artifact")
-
-            if (artifact != null) {
-                val f = File(Dirs.libraries, artifact.str("path")!!)
-                val url = artifact.str("url")
-                if (!url.isNullOrBlank()) libTasks += Dl(url, f, artifact.str("sha1"))
-                classpath += f
-            } else if (downloads == null) {
-                // old/loader-style entry: build the Maven path ourselves
-                val path = mavenPath(name)
-                val base = (lib.str("url") ?: "https://libraries.minecraft.net/").trimEnd('/')
-                val f = File(Dirs.libraries, path)
-                libTasks += Dl("$base/$path", f, null)
-                classpath += f
-            }
-
-            // old-style natives (pre-1.19): a classifier jar we unpack into the natives folder
-            val nativeKey = lib.obj("natives")?.str("windows")
-            if (nativeKey != null) {
-                val classifier = nativeKey.replace("\${arch}", if (Rules.is64) "64" else "32")
-                val na = downloads?.obj("classifiers")?.obj(classifier)
-                if (na != null) {
-                    val f = File(Dirs.libraries, na.str("path")!!)
-                    libTasks += Dl(na.str("url")!!, f, na.str("sha1"))
-                    val exclude = lib.obj("extract")?.arr("exclude")?.map { it.asString } ?: emptyList()
-                    nativeJars += f to exclude
-                }
-            }
-        }
-        downloadAll(libTasks, "Downloading libraries", status, progress)
+        val plan = collectLibs(json)
+        downloadAll(plan.tasks, "Downloading libraries", status, progress)
 
         val nativesDir = File(vdir, "natives")
         nativesDir.mkdirs()
-        for ((jar, exclude) in nativeJars) extractNatives(jar, nativesDir, exclude)
+        for ((jar, exclude) in plan.nativeJars) extractNatives(jar, nativesDir, exclude)
 
         // ---- assets ----
         val ai = json.obj("assetIndex") ?: error("This version has no asset index")
@@ -148,7 +127,7 @@ object GameInstaller {
             id = id,
             json = json,
             javaMajor = json.obj("javaVersion")?.int("majorVersion") ?: 8,
-            classpath = classpath,
+            libs = plan.libs,
             clientJar = clientJar,
             nativesDir = nativesDir,
             assetsIndexId = aid,
@@ -156,6 +135,101 @@ object GameInstaller {
             logConfig = logFile,
             logArg = logArg,
         )
+    }
+
+    // ------------------------------------------------------------------ Fabric / Quilt
+
+    private suspend fun addLoader(
+        base: Installed,
+        entry: VersionEntry,
+        loader: LoaderKind,
+        status: (String) -> Unit,
+        progress: (Int, Int) -> Unit,
+    ): Installed = withContext(Dispatchers.IO) {
+        status("Setting up ${loader.label}…")
+        val text = try {
+            loader.profileJson(entry.id)
+        } catch (e: IOException) {
+            throw IllegalStateException("${loader.label} isn't available for Minecraft ${entry.id}")
+        }
+        val lj = parseJson(text)
+        val lid = lj.str("id") ?: error("The ${loader.label} profile is missing an id")
+        val ldir = File(Dirs.versions, lid)
+        ldir.mkdirs()
+        File(ldir, "$lid.json").writeText(text)
+
+        val plan = collectLibs(lj)
+        downloadAll(plan.tasks, "Downloading ${loader.label} libraries", status, progress)
+
+        // loader libraries go first; if both define the same library, the loader's copy wins
+        val seen = HashSet<String>()
+        val merged = mutableListOf<Pair<String, File>>()
+        for (p in plan.libs + base.libs) if (seen.add(p.first)) merged += p
+
+        val mj = base.json.deepCopy()
+        lj.str("mainClass")?.let { mj.addProperty("mainClass", it) }
+        for (k in listOf("jvm", "game")) {
+            val extra = lj.obj("arguments")?.arr(k) ?: continue
+            val args = mj.obj("arguments") ?: JsonObject().also { mj.add("arguments", it) }
+            val arr = args.arr(k) ?: JsonArray().also { args.add(k, it) }
+            arr.addAll(extra)
+        }
+
+        Installed(
+            id = lid,
+            json = mj,
+            javaMajor = base.javaMajor,
+            libs = merged,
+            clientJar = base.clientJar,
+            nativesDir = base.nativesDir,
+            assetsIndexId = base.assetsIndexId,
+            virtualAssetsDir = base.virtualAssetsDir,
+            logConfig = base.logConfig,
+            logArg = base.logArg,
+        )
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    private fun collectLibs(json: JsonObject): LibPlan {
+        val plan = LibPlan()
+        for (e in json.arr("libraries") ?: JsonArray()) {
+            val lib = e.asJsonObject
+            if (!Rules.allowed(lib.arr("rules"))) continue
+            val name = lib.str("name") ?: continue
+            val parts = name.split(":")
+            val key = if (parts.size > 3) "${parts[0]}:${parts[1]}:${parts[3]}" else "${parts[0]}:${parts[1]}"
+            val downloads = lib.obj("downloads")
+            val artifact = downloads?.obj("artifact")
+
+            if (artifact != null) {
+                val f = File(Dirs.libraries, artifact.str("path")!!)
+                val url = artifact.str("url")
+                if (!url.isNullOrBlank()) plan.tasks += Dl(url, f, artifact.str("sha1"))
+                plan.libs += key to f
+            } else if (downloads == null) {
+                // loader-style entry: build the Maven path ourselves
+                val path = mavenPath(name)
+                val base = (lib.str("url") ?: "https://libraries.minecraft.net/").trimEnd('/')
+                val f = File(Dirs.libraries, path)
+                plan.tasks += Dl("$base/$path", f, lib.str("sha1"))
+                plan.libs += key to f
+            }
+
+            // old-style natives (pre-1.19): a classifier jar we unpack into the natives folder
+            val nativeKey = lib.obj("natives")?.str("windows")
+            if (nativeKey != null) {
+                val classifier = nativeKey.replace("\${arch}", if (Rules.is64) "64" else "32")
+                val na = downloads?.obj("classifiers")?.obj(classifier)
+                if (na != null) {
+                    val f = File(Dirs.libraries, na.str("path")!!)
+                    plan.tasks += Dl(na.str("url")!!, f, na.str("sha1"))
+                    val exclude = lib.obj("extract")?.arr("exclude")?.map { it.asString } ?: emptyList()
+                    plan.nativeJars += f to exclude
+                }
+            }
+        }
+        return plan
     }
 
     private suspend fun downloadAll(

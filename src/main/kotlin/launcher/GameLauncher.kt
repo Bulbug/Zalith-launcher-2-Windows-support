@@ -7,7 +7,7 @@ object GameLauncher {
 
     fun buildCommand(inst: Installed, javaExe: File, account: Account, ramMb: Int): List<String> {
         val json = inst.json
-        val cp = (inst.classpath + inst.clientJar).joinToString(File.pathSeparator) { it.absolutePath }
+        val cp = (inst.libs.map { it.second } + inst.clientJar).joinToString(File.pathSeparator) { it.absolutePath }
 
         val vars = mapOf(
             "auth_player_name" to account.name,

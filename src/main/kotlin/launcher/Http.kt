@@ -6,6 +6,7 @@ import com.google.gson.JsonParser
 import java.io.File
 import java.io.IOException
 import java.net.URI
+import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -39,6 +40,32 @@ object Http {
         if (res.statusCode() !in 200..299) throw IOException("HTTP ${res.statusCode()} for $url")
         return res.body()
     }
+
+    /** Never throws on HTTP errors: returns (status, body). */
+    fun post(url: String, body: String, contentType: String, headers: Map<String, String> = emptyMap()): Pair<Int, String> {
+        val b = HttpRequest.newBuilder(URI.create(url))
+            .timeout(Duration.ofSeconds(60))
+            .header("User-Agent", UA)
+            .header("Content-Type", contentType)
+            .header("Accept", "application/json")
+        headers.forEach { (k, v) -> b.header(k, v) }
+        val res = client.send(b.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString())
+        return res.statusCode() to res.body()
+    }
+
+    /** Never throws on HTTP errors: returns (status, body). */
+    fun getWithStatus(url: String, headers: Map<String, String> = emptyMap()): Pair<Int, String> {
+        val b = HttpRequest.newBuilder(URI.create(url))
+            .timeout(Duration.ofSeconds(60))
+            .header("User-Agent", UA)
+            .header("Accept", "application/json")
+        headers.forEach { (k, v) -> b.header(k, v) }
+        val res = client.send(b.GET().build(), HttpResponse.BodyHandlers.ofString())
+        return res.statusCode() to res.body()
+    }
+
+    fun form(vararg p: Pair<String, String>): String =
+        p.joinToString("&") { (k, v) -> URLEncoder.encode(k, "UTF-8") + "=" + URLEncoder.encode(v, "UTF-8") }
 
     /** Downloads [url] to [dest]. Skips if the file already exists (and matches [sha1] when given). */
     fun download(url: String, dest: File, sha1: String? = null) {
