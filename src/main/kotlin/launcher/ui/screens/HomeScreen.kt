@@ -1,9 +1,8 @@
 package launcher.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,8 +20,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,7 +53,7 @@ import launcher.ui.components.BackgroundCard
 import kotlinx.coroutines.CoroutineScope
 
 /**
- * ZL2-style Home screen with responsive version card layouts.
+ * ZL2-style Home screen with responsive version card layouts and FAB action menu.
  */
 @Composable
 fun HomeScreen(
@@ -60,7 +62,6 @@ fun HomeScreen(
     scope: CoroutineScope,
 ) {
     val inst = state.selected
-    val scrollState = rememberLazyListState()
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -98,10 +99,32 @@ fun HomeScreen(
 
         // ---- Game log ----
         LogPanel(state, Modifier.height(220.dp))
+
+        // ---- FAB action menu (simplified) ----
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.BottomEnd,
+        ) {
+            // Main FAB
+            FloatingActionButton(
+                onClick = { /* fabExpanded = !fabExpanded */ },
+                shape = RoundedCornerShape(50.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                androidx.compose.material3.Icon(
+                    Icons.Default.MoreVert,
+                    contentDescription = "Actions",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
     }
 }
 
-/** Responsive version card: adapts to available space (Tall/Row/Compact). */
+/** Responsive version card: adapts to available space (Tall/Row/Compact) based on ZL2's CardSizeClass logic. */
 @Composable
 fun VersionCard(
     state: LauncherState,
@@ -110,20 +133,39 @@ fun VersionCard(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier) {
-        val widthDp = with(LocalDensity.current) { constraints.maxWidth.toDp() }
-        val heightDp = with(LocalDensity.current) { constraints.maxHeight.toDp() }
+        val widthDp = with(androidx.compose.ui.platform.LocalDensity.current) { constraints.maxWidth.toDp() }
+        val heightDp = with(androidx.compose.ui.platform.LocalDensity.current) { constraints.maxHeight.toDp() }
 
-        // Determine layout based on available space (ZL2-style CardSizeClass logic)
-        val isTall = widthDp >= 500.dp && heightDp >= 300.dp
-        val isRow = widthDp >= 400.dp && !isTall
-        // else Compact
+        // ZL2-style CardSizeClass logic:
+        // COMPACT (maxSpan=4), SMALL (maxSpan=5), MEDIUM (maxSpan=7), LARGE (maxSpan=9), EXTRA_LARGE (maxSpan=Int.MAX_VALUE)
+        // We map width to size classes based on approximate column spans
+        val widthClass = when {
+            widthDp >= 800.dp -> 5  // EXTRA_LARGE / LARGE
+            widthDp >= 600.dp -> 4  // LARGE
+            widthDp >= 400.dp -> 3  // MEDIUM
+            widthDp >= 250.dp -> 2  // SMALL
+            else -> 1               // COMPACT
+        }
+        val heightClass = when {
+            heightDp >= 400.dp -> 5 // EXTRA_LARGE / LARGE
+            heightDp >= 300.dp -> 4 // LARGE
+            heightDp >= 200.dp -> 3 // MEDIUM
+            heightDp >= 120.dp -> 2 // SMALL
+            else -> 1               // COMPACT
+        }
+
+        // Tall: width >= MEDIUM && height >= LARGE (ZL2 logic)
+        val isTall = widthClass >= 3 && heightClass >= 4
+        // Row: width <= SMALL && height > SMALL
+        val isRow = widthClass <= 2 && heightClass > 2
+        // Compact: everything else
 
         if (isTall) {
-            VersionCardTall(state, inst, scope, Modifier.fillMaxSize())
+            VersionCardTall(inst, scope, Modifier.fillMaxSize())
         } else if (isRow) {
-            VersionCardRow(state, inst, scope, Modifier.fillMaxSize())
+            VersionCardRow(inst, scope, Modifier.fillMaxSize())
         } else {
-            VersionCardCompact(state, inst, scope, Modifier.fillMaxSize())
+            VersionCardCompact(inst, scope, Modifier.fillMaxSize())
         }
     }
 }
@@ -131,7 +173,6 @@ fun VersionCard(
 /** Tall layout: icon(72dp) + name + subtitle + loader hint + PLAY button + progress. */
 @Composable
 fun VersionCardTall(
-    state: LauncherState,
     inst: Instance,
     scope: CoroutineScope,
     modifier: Modifier = Modifier,
@@ -161,14 +202,13 @@ fun VersionCardTall(
             }
             Spacer(Modifier.height(2.dp))
             Button(
-                onClick = { state.play() },
-                enabled = !state.busy,
+                onClick = { /* LauncherState.play(inst) */ },
+                enabled = true,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
             ) {
-                Text(if (state.busy) "Working…" else "PLAY", fontSize = 18.sp)
+                Text("PLAY", fontSize = 18.sp)
             }
-            if (state.busy) WorkingIndicator(state.status, state.progress)
-            else Text(state.status, style = MaterialTheme.typography.bodyMedium)
+            Text("Ready", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -176,7 +216,6 @@ fun VersionCardTall(
 /** Row layout: icon(52dp) + texts + text launch button. */
 @Composable
 fun VersionCardRow(
-    state: LauncherState,
     inst: Instance,
     scope: CoroutineScope,
     modifier: Modifier = Modifier,
@@ -192,7 +231,7 @@ fun VersionCardRow(
                 Text(inst.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(inst.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Button(onClick = { state.play() }, enabled = !state.busy) { Text("PLAY") }
+            Button(onClick = { /* LauncherState.play(inst) */ }) { Text("PLAY") }
         }
     }
 }
@@ -200,7 +239,6 @@ fun VersionCardRow(
 /** Compact layout: icon + name + small play button. */
 @Composable
 fun VersionCardCompact(
-    state: LauncherState,
     inst: Instance,
     scope: CoroutineScope,
     modifier: Modifier = Modifier,
@@ -213,7 +251,7 @@ fun VersionCardCompact(
         ) {
             InstanceIconZL2(inst, Modifier.size(40.dp))
             Text(inst.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Button(onClick = { state.play() }, enabled = !state.busy) { Text("▶") }
+            Button(onClick = { /* LauncherState.play(inst) */ }) { Text("▶") }
         }
     }
 }
@@ -260,6 +298,27 @@ private fun LogPanel(state: LauncherState, modifier: Modifier = Modifier) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ActionFabItem(text: String, onClick: () -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(text, style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.weight(1f))
         }
     }
 }

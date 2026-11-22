@@ -120,7 +120,7 @@ fun TopBar(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (taskRunning) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), progress = taskProgress?.coerceIn(0f, 1f))
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), progress = { taskProgress?.coerceIn(0f, 1f) ?: 0f })
                     } else {
                         Spacer(Modifier.fillMaxWidth())
                     }
