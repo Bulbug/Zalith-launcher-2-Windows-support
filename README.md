@@ -71,11 +71,13 @@ Works (written, not yet tested by a real build - report problems!):
 - Offline accounts, and Microsoft login once your app ID is approved.
 - **Fabric and Quilt**, and **Forge and NeoForge** for Minecraft 1.13+ (experimental; they use
   the official installers). Modpacks can pin an exact loader version.
+- **OptiFine** (standalone, no Forge combos): pick a build in the New dialog; the installer
+  is downloaded from optifine.net and patched onto the vanilla jar.
 - **Mod browser** (Modrinth): search, install with required dependencies, remove.
 - **Instances** and **Modrinth modpacks** (.mrpack).
 
-Not yet: OptiFine, CurseForge, CurseForge-format modpacks, Forge for Minecraft 1.12 and older,
-Zalith's UI screens.
+Not yet: OptiFine with Forge, CurseForge, CurseForge-format modpacks, Forge for Minecraft 1.12
+and older, Zalith's UI screens.
 
 Upgrading from 0.3: the old `instances\<version>-<loader>` folders (without an `instance.json`)
 are left alone and don't show up in the list. Copy their saves into a new instance if you

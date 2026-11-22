@@ -11,6 +11,7 @@ enum class LoaderKind(
     val usesInstaller: Boolean = false,
 ) {
     VANILLA("Vanilla", null, emptyList()),
+    OPTIFINE("OptiFine", null, emptyList()),
     FABRIC("Fabric", "https://meta.fabricmc.net/v2/versions/loader", listOf("fabric")),
     QUILT("Quilt", "https://meta.quiltmc.org/v3/versions/loader", listOf("quilt", "fabric")),
     FORGE("Forge", null, listOf("forge"), true),

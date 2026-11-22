@@ -153,7 +153,13 @@ object GameInstaller {
         progress: (Int, Int) -> Unit,
     ): Installed = withContext(Dispatchers.IO) {
         val text: String
-        if (loader.usesInstaller) {
+        if (loader == LoaderKind.OPTIFINE) {
+            status("Setting up OptiFine…")
+            text = OptiFineInstaller.install(entry.id, loaderVersion ?: "", status).toString()
+            val id = parseJson(text).str("id") ?: error("The OptiFine profile is missing an id")
+            File(Dirs.versions, id).mkdirs()
+            File(Dirs.versions, "$id/$id.json").writeText(text)
+        } else if (loader.usesInstaller) {
             // Forge / NeoForge: run the official installer headless into our folders
             status("Checking Java for the ${loader.label} installer…")
             val java = JavaRuntime.ensure(base.javaMajor) { status(it) }
@@ -235,10 +241,15 @@ object GameInstaller {
             } else if (downloads == null) {
                 // loader-style entry: build the Maven path ourselves
                 val path = mavenPath(name)
-                val base = (lib.str("url") ?: "https://libraries.minecraft.net/").trimEnd('/')
                 val f = File(Dirs.libraries, path)
-                plan.tasks += Dl("$base/$path", f, lib.str("sha1"))
-                plan.libs += key to f
+                if (lib.str("url").isNullOrBlank() && f.isFile) {
+                    // local-only library (e.g. OptiFine's own jars we placed earlier)
+                    plan.libs += key to f
+                } else {
+                    val base = (lib.str("url") ?: "https://libraries.minecraft.net/").trimEnd('/')
+                    plan.tasks += Dl("$base/$path", f, lib.str("sha1"))
+                    plan.libs += key to f
+                }
             }
 
             // old-style natives (pre-1.19): a classifier jar we unpack into the natives folder

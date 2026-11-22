@@ -18,6 +18,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun RadioRow(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
@@ -38,7 +41,7 @@ fun RadioRow(label: String, selected: Boolean, enabled: Boolean, onClick: () -> 
 @Composable
 fun NewInstanceDialog(
     versions: List<VersionEntry>,
-    onCreate: (name: String, mc: String, loader: LoaderKind) -> Unit,
+    onCreate: (name: String, mc: String, loader: LoaderKind, loaderVersion: String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
@@ -49,6 +52,23 @@ fun NewInstanceDialog(
     val visible = remember(versions, showAll) {
         if (showAll) versions else versions.filter { it.type == "release" }
     }
+
+    // OptiFine build selection (only used when loader == OPTIFINE)
+    var ofMenuOpen by remember { mutableStateOf(false) }
+    var ofBuilds by remember { mutableStateOf<List<OptiFineBuild>?>(null) }
+    var ofBuild by remember { mutableStateOf<OptiFineBuild?>(null) }
+    LaunchedEffect(loader, mc) {
+        if (loader != LoaderKind.OPTIFINE || mc.isBlank()) {
+            ofBuild = null
+            ofBuilds = null
+            return@LaunchedEffect
+        }
+        ofBuild = null
+        ofBuilds = withContext(Dispatchers.IO) {
+            runCatching { OptiFine.listFor(mc) }.getOrNull()
+        }
+    }
+    val ofList = ofBuilds
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -92,10 +112,44 @@ fun NewInstanceDialog(
                         rowKinds.forEach { k -> RadioRow(k.label, loader == k, true) { loader = k } }
                     }
                 }
+                if (loader == LoaderKind.OPTIFINE) {
+                    val build = ofBuild
+                    Column {
+                        OutlinedButton(
+                            onClick = { ofMenuOpen = true },
+                            enabled = mc.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                when {
+                                    ofList == null -> "Loading OptiFine builds…"
+                                    ofList.isEmpty() -> "No OptiFine builds for $mc"
+                                    build != null -> "OptiFine build: ${build.displayName}"
+                                    else -> "OptiFine build…"
+                                }
+                            )
+                        }
+                        DropdownMenu(expanded = ofMenuOpen, onDismissRequest = { ofMenuOpen = false }) {
+                            ofList.orEmpty().filter { !it.isPreview }.forEach { b ->
+                                DropdownMenuItem(
+                                    text = { Text(b.displayName) },
+                                    onClick = {
+                                        ofBuild = b
+                                        ofMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
-            Button(onClick = { onCreate(name, mc, loader) }, enabled = mc.isNotBlank()) { Text("Create") }
+            val build = ofBuild
+            Button(
+                onClick = { onCreate(name, mc, loader, build?.version) },
+                enabled = mc.isNotBlank() && (loader != LoaderKind.OPTIFINE || build != null),
+            ) { Text("Create") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

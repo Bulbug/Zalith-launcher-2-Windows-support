@@ -284,8 +284,8 @@ fun LauncherScreen() {
     if (showNew) {
         NewInstanceDialog(
             versions = versions,
-            onCreate = { n, mc, l ->
-                val inst = InstanceStore.create(n, mc, l, null)
+            onCreate = { n, mc, l, lv ->
+                val inst = InstanceStore.create(n, mc, l, lv)
                 refreshInstances(inst.id)
                 showNew = false
             },
