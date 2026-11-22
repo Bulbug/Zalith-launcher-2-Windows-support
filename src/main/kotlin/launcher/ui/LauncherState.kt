@@ -21,6 +21,7 @@ import launcher.ModpackInstaller
 import launcher.Settings
 import launcher.StoredAccount
 import launcher.VersionEntry
+import launcher.ui.ColorTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,21 +31,22 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** Navigation targets for the left rail. */
+/** Navigation targets for the top bar rail. */
 enum class RailScreen { HOME, DOWNLOAD, INSTANCES, SETTINGS }
 
 /** Which category is open inside the Download screen. */
-enum class DownloadTab { MODS, MODPACKS }
+enum class DownloadTab { MODS, MODPACKS, GAME }
 
 /**
  * All launcher state + actions, hoisted out of composables so the screens are thin views.
  * Created once in App(); survives rail navigation.
  */
 class LauncherState(private val scope: CoroutineScope) {
+    var screen by mutableStateOf(RailScreen.HOME)
     // ---- theme ----
     var dark by mutableStateOf(Settings.load().dark)
-    var accent by mutableStateOf(
-        runCatching { Accent.valueOf(Settings.load().accent) }.getOrDefault(Accent.GREEN)
+    var colorTheme by mutableStateOf(
+        runCatching { ColorTheme.valueOf(Settings.load().colorTheme) }.getOrDefault(ColorTheme.VERDANT_DAWN)
     )
 
     fun applyDark(v: Boolean) {
@@ -52,9 +54,9 @@ class LauncherState(private val scope: CoroutineScope) {
         currentSettings { it.copy(dark = v) }
     }
 
-    fun applyAccent(a: Accent) {
-        accent = a
-        currentSettings { it.copy(accent = a.name) }
+    fun applyColorTheme(t: ColorTheme) {
+        colorTheme = t
+        currentSettings { it.copy(colorTheme = t.name) }
     }
 
     // ---- data ----
@@ -217,7 +219,7 @@ class LauncherState(private val scope: CoroutineScope) {
         }
         val ramMb = Settings.load().ramMb
         Settings(name, ramMb, Settings.load().account, inst.id,
-            dark, accent.name).save()
+            dark, colorTheme.name).save()
 
         busy = true
         log.clear()

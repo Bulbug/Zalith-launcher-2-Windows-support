@@ -1,7 +1,7 @@
 package launcher
 
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -10,6 +10,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,29 +21,44 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import launcher.ui.Accent
 import launcher.ui.AppTheme
 import launcher.ui.LauncherState
-import launcher.ui.NavRail
 import launcher.ui.RailScreen
+import launcher.ui.TopBar
 import launcher.ui.screens.DownloadScreen
 import launcher.ui.screens.HomeScreen
 import launcher.ui.screens.InstancesScreen
 import launcher.ui.screens.SettingsScreen
+import launcher.ui.rememberAppTheme
 
 @Composable
 fun App() {
-    val state = remember { LauncherState(CoroutineScope(SupervisorJob() + Dispatchers.Default)) }
-    var screen by remember { mutableStateOf(RailScreen.HOME) }
+    val scope = rememberCoroutineScope()
+    val state = remember { LauncherState(scope) }
+    val theme = rememberAppTheme()
 
-    AppTheme(dark = state.dark, accent = state.accent) {
+    // Sync theme state from saved settings
+    LaunchedEffect(Unit) {
+        state.dark = theme.isDark
+        state.colorTheme = theme.colorTheme
+    }
+
+    AppTheme(isDark = state.dark, colorTheme = state.colorTheme) {
         Surface(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxSize()) {
-                NavRail(screen) { screen = it }
-                Crossfade(screen) { s ->
-                    when (s) {
-                        RailScreen.HOME -> HomeScreen(state) { screen = it }
+            Column {
+                TopBar(
+                    currentScreen = state.screen,
+                    onBack = { state.screen = RailScreen.HOME },
+                    onHome = { state.screen = RailScreen.HOME },
+                    onNavigate = { state.screen = it },
+                    onTaskMenu = { },
+                    onFileManager = { LauncherState.openFolder(launcher.Dirs.root) },
+                    taskRunning = state.busy,
+                    taskProgress = state.progress,
+                )
+                Crossfade(state.screen) { screen ->
+                    when (screen) {
+                        RailScreen.HOME -> HomeScreen(state, onNavigate = { state.screen = it }, scope = scope)
                         RailScreen.DOWNLOAD -> DownloadScreen(state)
                         RailScreen.INSTANCES -> InstancesScreen(state)
                         RailScreen.SETTINGS -> SettingsScreen(state)
@@ -50,8 +66,6 @@ fun App() {
                 }
             }
         }
-
-        GlobalDialogs(state)
     }
 }
 

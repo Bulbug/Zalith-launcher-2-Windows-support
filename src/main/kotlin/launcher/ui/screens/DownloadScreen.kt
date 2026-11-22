@@ -1,6 +1,5 @@
 package launcher.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,12 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,37 +35,94 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
 import launcher.Instance
 import launcher.ModHit
 import launcher.Modrinth
 import launcher.ui.DownloadTab
 import launcher.ui.LauncherState
+import launcher.ui.RailScreen
 import launcher.ui.WorkingIndicator
+import launcher.ui.components.BackgroundCard
 import java.io.File
 
 /**
- * Download screen, ZL2-style: an inner rail with categories (Mods / Modpacks)
- * beside the category's content.
+ * ZL2-style Download screen:
+ * - Left TabMenu rail with categories (Game, Modpack, Mod, Resource Pack, Saves, Shaders, Search by ID, Favorites)
+ * - Right content with nested nav (Mods / Modpacks panes)
  */
 @Composable
-fun DownloadScreen(state: LauncherState) {
+fun DownloadScreen(
+    state: LauncherState,
+) {
     var tab by remember { mutableStateOf(DownloadTab.MODS) }
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    Row(Modifier.fillMaxSize()) {
+        // ---- Left TabMenu rail ----
         Column(
-            Modifier.width(120.dp).fillMaxSize().padding(vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            Modifier
+                .width(180.dp)
+                .fillMaxSize()
+                .padding(vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            RailItem2("Mods", tab == DownloadTab.MODS) { tab = DownloadTab.MODS }
-            RailItem2("Modpacks", tab == DownloadTab.MODPACKS) { tab = DownloadTab.MODPACKS }
+            // Categories with section dividers
+            TabMenuCategory("Game", tab == DownloadTab.GAME) { tab = DownloadTab.GAME }
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxWidth(0.4f).padding(start = 8.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            TabMenuCategory("Modpack", tab == DownloadTab.MODPACKS) { tab = DownloadTab.MODPACKS }
+            TabMenuCategory("Mod", tab == DownloadTab.MODS) { tab = DownloadTab.MODS }
+            TabMenuCategory("Resource Pack") { /* TODO */ }
+            TabMenuCategory("Saves") { /* TODO */ }
+            TabMenuCategory("Shaders") { /* TODO */ }
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxWidth(0.4f).padding(start = 8.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            TabMenuCategory("Search by ID") { /* TODO */ }
+            TabMenuCategory("Favorites") { /* TODO */ }
         }
+
+        // ---- Right content ----
         when (tab) {
             DownloadTab.MODS -> ModsPane(state)
             DownloadTab.MODPACKS -> ModpacksPane(state)
+            DownloadTab.GAME -> Box(Modifier.fillMaxSize()) { Text("Game tab - TODO", style = MaterialTheme.typography.titleMedium) }
         }
     }
 }
 
-// ---------------------------------------------------------------- mods
+/** TabMenu category item: selected = secondaryContainer + label visible, unselected = surface. */
+@Composable
+private fun TabMenuCategory(
+    label: String,
+    selected: Boolean = false,
+    onClick: () -> Unit = {},
+) {
+    androidx.compose.material3.Surface(
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+        else MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .clickable(onClick = onClick),
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+        )
+    }
+}
+
+// ---------------------------------------------------------------- Mods pane
 
 @Composable
 private fun ModsPane(state: LauncherState) {
@@ -78,7 +134,6 @@ private fun ModsPane(state: LauncherState) {
     var installed by remember { mutableStateOf(emptyList<File>()) }
 
     val inst = state.selected
-    // refresh the installed list whenever the pane is (re)composed with a different instance
     remember(inst?.id) {
         installed = if (inst != null) Modrinth.listInstalled(inst.modsDir) else emptyList()
         inst
@@ -134,59 +189,69 @@ private fun ModsPane(state: LauncherState) {
         status = "Removed ${file.name}"
     }
 
-    Column(
-        Modifier.fillMaxSize().padding(vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+    Box(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.TopStart,
     ) {
-        if (inst == null) {
-            Note("Select an instance in Instances to browse mods for it.")
-            return@Column
-        }
-        Text("Mods for ${inst.name}", style = MaterialTheme.typography.titleLarge)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text("Search Modrinth") },
-                singleLine = true,
-                enabled = !busy,
-                modifier = Modifier.weight(1f),
-            )
-            Button(onClick = { search() }, enabled = !busy) { Text("Search") }
-        }
-        if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (busy) WorkingIndicator(status, null)
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(results) { hit ->
-                ResultCard(
-                    title = hit.title,
-                    subtitle = "${hit.author} - ${hit.description}",
-                    trailing = "${formatDownloads(hit.downloads)} downloads",
-                    actionLabel = "Install",
-                    actionEnabled = !busy,
-                    onAction = { install(hit) },
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (inst == null) {
+                Text(
+                    "Select an instance in Instances to browse mods for it.",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxSize(),
                 )
+                return@Box
             }
-            if (installed.isNotEmpty()) {
-                item {
-                    Text("Installed in this instance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                }
-                items(installed) { f ->
-                    ResultCard(
-                        title = f.name,
-                        subtitle = "",
-                        trailing = "",
-                        actionLabel = "Remove",
+            Text("Mods for ${inst.name}", style = MaterialTheme.typography.titleLarge)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Search Modrinth") },
+                    singleLine = true,
+                    enabled = !busy,
+                    modifier = Modifier.weight(1f),
+                )
+                Button(onClick = { search() }, enabled = !busy) { Text("Search") }
+            }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (busy) WorkingIndicator(status, null)
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(results) { hit ->
+                    ModResultCard(
+                        title = hit.title,
+                        subtitle = "${hit.author} - ${hit.description}",
+                        trailing = "${formatDownloads(hit.downloads)} downloads",
+                        actionLabel = "Install",
                         actionEnabled = !busy,
-                        onAction = { remove(f) },
+                        onAction = { install(hit) },
                     )
+                }
+                if (installed.isNotEmpty()) {
+                    item {
+                        Text("Installed in this instance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
+                    items(installed) { f ->
+                        ModResultCard(
+                            title = f.name,
+                            subtitle = "",
+                            trailing = "",
+                            actionLabel = "Remove",
+                            actionEnabled = !busy,
+                            onAction = { remove(f) },
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-// ---------------------------------------------------------------- modpacks
+// ---------------------------------------------------------------- Modpacks pane
 
 @Composable
 private fun ModpacksPane(state: LauncherState) {
@@ -245,43 +310,48 @@ private fun ModpacksPane(state: LauncherState) {
         }
     }
 
-    Column(
-        Modifier.fillMaxSize().padding(vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+    Box(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.TopStart,
     ) {
-        Text("Modpacks", style = MaterialTheme.typography.titleLarge)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text("Search Modrinth modpacks") },
-                singleLine = true,
-                enabled = !busy,
-                modifier = Modifier.weight(1f),
-            )
-            Button(onClick = { search() }, enabled = !busy) { Text("Search") }
-        }
-        if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (busy) WorkingIndicator(status, progress)
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(results) { hit ->
-                ResultCard(
-                    title = hit.title,
-                    subtitle = "${hit.author} - ${hit.description}",
-                    trailing = "${formatDownloads(hit.downloads)} downloads",
-                    actionLabel = "Install",
-                    actionEnabled = !busy,
-                    onAction = { install(hit) },
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Modpacks", style = MaterialTheme.typography.titleLarge)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Search Modrinth modpacks") },
+                    singleLine = true,
+                    enabled = !busy,
+                    modifier = Modifier.weight(1f),
                 )
+                Button(onClick = { search() }, enabled = !busy) { Text("Search") }
+            }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (busy) WorkingIndicator(status, progress)
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(results) { hit ->
+                    ModResultCard(
+                        title = hit.title,
+                        subtitle = "${hit.author} - ${hit.description}",
+                        trailing = "${formatDownloads(hit.downloads)} downloads",
+                        actionLabel = "Install",
+                        actionEnabled = !busy,
+                        onAction = { install(hit) },
+                    )
+                }
             }
         }
     }
 }
 
-// ---------------------------------------------------------------- shared bits
+// ---------------------------------------------------------------- shared
 
 @Composable
-private fun ResultCard(
+private fun ModResultCard(
     title: String,
     subtitle: String,
     trailing: String,
@@ -308,33 +378,6 @@ private fun ResultCard(
             }
             Button(onClick = onAction, enabled = actionEnabled) { Text(actionLabel) }
         }
-    }
-}
-
-@Composable
-private fun RailItem2(label: String, selected: Boolean, onClick: () -> Unit) {
-    Surface(
-        color = if (selected) MaterialTheme.colorScheme.secondaryContainer
-        else MaterialTheme.colorScheme.surface,
-        shape = MaterialTheme.shapes.large,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-        )
-    }
-}
-
-@Composable
-private fun Note(text: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 

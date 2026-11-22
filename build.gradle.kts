@@ -9,6 +9,7 @@ plugins {
 dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
+    implementation("androidx.compose.material:material-icons-extended:1.7.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.9.0")
     implementation("com.google.code.gson:gson:2.11.0")
 }
