@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Assignment
@@ -17,7 +19,13 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.foundation.layout.Arrangement as FArrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,7 +72,6 @@ fun TopBar(
     taskRunning: Boolean,
     taskProgress: Float?,
 ) {
-    // Simple box with background instead of Surface
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -78,9 +86,9 @@ fun TopBar(
             // Left: back + home + title
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 AnimatedVisibility(visible = currentScreen != RailScreen.HOME) {
-                    IconButton(onClick = { }) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
                 }
-                IconButton(onClick = { }) { Icon(Icons.Filled.Home, contentDescription = "Home") }
+                IconButton(onClick = onHome) { Icon(Icons.Filled.Home, contentDescription = "Home") }
                 Text(
                     when (currentScreen) {
                         RailScreen.HOME -> AppInfo.NAME
@@ -100,23 +108,31 @@ fun TopBar(
                     .width(TASK_MENU_WIDTH)
                     .height(TOP_BAR_HEIGHT - 8.dp)
                     .padding(all = 4.dp)
-                    .background(if (true) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest, shape = MaterialTheme.shapes.large),
+                    .clickable(onClick = onTaskMenu)
+                    .background(
+                        if (taskRunning) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                        shape = MaterialTheme.shapes.large,
+                    ),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp).fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    LinearProgressIndicator(modifier = Modifier.weight(1f), progress = 0.5f)
+                    if (taskRunning) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), progress = taskProgress?.coerceIn(0f, 1f))
+                    } else {
+                        Spacer(Modifier.fillMaxWidth())
+                    }
                     Icon(Icons.Filled.Assignment, contentDescription = "Task menu", tint = MaterialTheme.colorScheme.onSecondaryContainer)
                 }
             }
 
-            androidx.compose.material3.IconButton(onClick = { }) { Icon(Icons.Filled.Folder, contentDescription = "Open folder") }
+            IconButton(onClick = onFileManager) { Icon(Icons.Filled.Folder, contentDescription = "Open folder") }
 
-            TopBarRailItem(Icons.Filled.Group, "Multiplayer", true) { }
-            TopBarRailItem(Icons.Filled.Download, "Download", false) { }
-            TopBarRailItem(Icons.Filled.Settings, "Settings", false) { }
+            TopBarRailItem(Icons.Filled.Group, "Multiplayer", currentScreen == RailScreen.INSTANCES) { onNavigate(RailScreen.INSTANCES) }
+            TopBarRailItem(Icons.Filled.Download, "Download", currentScreen == RailScreen.DOWNLOAD) { onNavigate(RailScreen.DOWNLOAD) }
+            TopBarRailItem(Icons.Filled.Settings, "Settings", currentScreen == RailScreen.SETTINGS) { onNavigate(RailScreen.SETTINGS) }
         }
     }
 }
@@ -130,20 +146,23 @@ fun TopBarRailItem(
 ) {
     Box(
         modifier = Modifier
-            .clickable(onClick = { })
+            .clickable(onClick = onClick)
             .padding(
-                horizontal = if (true) RAIL_ITEM_SELECTED_HORIZONTAL_PADDING else RAIL_ITEM_UNSELECTED_PADDING,
-                vertical = if (true) RAIL_ITEM_SELECTED_VERTICAL_PADDING else RAIL_ITEM_UNSELECTED_PADDING,
+                horizontal = if (selected) RAIL_ITEM_SELECTED_HORIZONTAL_PADDING else RAIL_ITEM_UNSELECTED_PADDING,
+                vertical = if (selected) RAIL_ITEM_SELECTED_VERTICAL_PADDING else RAIL_ITEM_UNSELECTED_PADDING,
             )
-            .background(if (true) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large),
+            .background(
+                if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+                shape = MaterialTheme.shapes.large,
+            ),
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            androidx.compose.material3.Icon(Icons.Filled.Group, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface)
-            AnimatedVisibility(visible = true) {
+            Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface)
+            AnimatedVisibility(visible = selected) {
                 Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Medium)
             }
         }
