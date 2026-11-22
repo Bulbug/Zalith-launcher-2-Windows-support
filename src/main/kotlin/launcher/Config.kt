@@ -7,8 +7,8 @@ object AppInfo {
     // Change the name here. Per the Zalith Launcher 2 license terms, a modified version
     // must not contain "ZalithLauncher" or "ZL" in its name and must say it is an
     // "Unofficial Modified Version" on the main screen.
-    const val NAME = "Desk Launcher"
-    const val VERSION = "0.4.0"
+    const val NAME = "Zalith 2 Windows Support"
+    const val VERSION = "0.5.0-beta"
     const val NOTICE = "Unofficial Modified Version"
 }
 

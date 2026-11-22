@@ -49,24 +49,24 @@ jobs:
         run: .\gradlew.bat --no-daemon packageExe packageMsi
 
       - name: Zip portable app
-        run: Compress-Archive -Path build/compose/binaries/main/app/DeskLauncher -DestinationPath DeskLauncher-windows-portable.zip
+        run: Compress-Archive -Path build/compose/binaries/main/app/Zalith2WindowsSupport -DestinationPath Zalith2WindowsSupport-windows-portable.zip
 
       - name: Upload portable app
         uses: actions/upload-artifact@v4
         with:
-          name: DeskLauncher-windows-portable
-          path: ${{ env.PROJECT_DIR }}/DeskLauncher-windows-portable.zip
+          name: Zalith2WindowsSupport-windows-portable
+          path: ${{ env.PROJECT_DIR }}/Zalith2WindowsSupport-windows-portable.zip
 
       - name: Upload uber jar
         uses: actions/upload-artifact@v4
         with:
-          name: DeskLauncher-jar
+          name: Zalith2WindowsSupport-jar
           path: ${{ env.PROJECT_DIR }}/build/compose/jars/*.jar
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: DeskLauncher-installers
+          name: Zalith2WindowsSupport-installers
           path: |
             ${{ env.PROJECT_DIR }}/build/compose/binaries/main/exe/*.exe
             ${{ env.PROJECT_DIR }}/build/compose/binaries/main/msi/*.msi
@@ -78,7 +78,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.PROJECT_DIR }}/DeskLauncher-windows-portable.zip
+            ${{ env.PROJECT_DIR }}/Zalith2WindowsSupport-windows-portable.zip
             ${{ env.PROJECT_DIR }}/build/compose/jars/*.jar
             ${{ env.PROJECT_DIR }}/build/compose/binaries/main/exe/*.exe
             ${{ env.PROJECT_DIR }}/build/compose/binaries/main/msi/*.msi

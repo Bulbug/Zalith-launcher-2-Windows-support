@@ -1,12 +1,13 @@
-# Desk Launcher (Windows)
+# Zalith 2 Windows Support (beta)
 
-Windows desktop port of the idea behind Zalith Launcher 2. Phase 1 is a working
-vanilla launcher: pick a version, it downloads everything (game, libraries,
-assets, Java if needed) and starts Minecraft with an offline account.
+Windows desktop port of the idea behind Zalith Launcher 2. A working launcher:
+pick a version, it downloads everything (game, libraries, assets, Java if needed)
+and starts Minecraft. Supports OptiFine, Fabric, Quilt, Forge (1.13+), NeoForge,
+Modrinth mods and modpacks.
 
 **Unofficial Modified Version.** Based on ideas and (from phase 2) code of
-Zalith Launcher 2 (GPL-3.0 with additional terms). Keep their copyright notices,
-keep this project GPL-3.0, and don't use "ZalithLauncher" or "ZL" in the name.
+Zalith Launcher 2 (GPL-3.0 with additional terms). Keep their copyright notices
+and keep this project GPL-3.0.
 The app name is the `NAME` constant in `src/main/kotlin/launcher/Config.kt`.
 
 ## Run it

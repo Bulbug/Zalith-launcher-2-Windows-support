@@ -21,8 +21,8 @@ compose.desktop {
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             // the packaged app only contains the Java modules listed here (the launcher needs java.net.http)
             modules("java.net.http", "jdk.unsupported", "java.instrument")
-            packageName = "DeskLauncher"
-            packageVersion = "1.0.0"
+            packageName = "Zalith2WindowsSupport"
+            packageVersion = "0.5.0"
         }
     }
 }

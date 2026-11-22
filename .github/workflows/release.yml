@@ -1,0 +1,98 @@
+name: Release Zalith 2 Windows Support (beta)
+
+# Publishes a beta GitHub Release with the portable zip, uber jar and installers.
+# Trigger: push a tag like v0.5.0-beta, or run it manually (uses the latest v* tag,
+# or creates one from the version in build.gradle.kts).
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  PROJECT_DIR: .
+  APP_NAME: Zalith2WindowsSupport
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT_DIR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle (with cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build portable app
+        run: .\gradlew.bat --no-daemon createDistributable
+
+      - name: Build uber jar
+        run: .\gradlew.bat --no-daemon packageUberJarForCurrentOS
+
+      - name: Build installers (optional)
+        continue-on-error: true
+        run: .\gradlew.bat --no-daemon packageExe packageMsi
+
+      - name: Determine release tag
+        id: tag
+        shell: pwsh
+        run: |
+          if ("$env:GITHUB_REF" -like "refs/tags/*") {
+            $tag = $env:GITHUB_REF -replace 'refs/tags/', ''
+          } else {
+            git fetch --tags
+            $tag = git describe --tags --abbrev=0 2>$null
+            if (-not $tag) {
+              $ver = (Select-String -Path build.gradle.kts -Pattern 'packageVersion = "(.+?)"').Matches.Groups[1].Value
+              $tag = "v$ver-beta"
+            }
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$($tag -replace '^v','')" >> $env:GITHUB_OUTPUT
+
+      - name: Zip portable app
+        run: Compress-Archive -Path build/compose/binaries/main/app/${{ env.APP_NAME }} -DestinationPath ${{ env.APP_NAME }}-windows-portable-${{ steps.tag.outputs.version }}.zip
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: |
+            ${{ env.PROJECT_DIR }}/${{ env.APP_NAME }}-windows-portable-*.zip
+            ${{ env.PROJECT_DIR }}/build/compose/jars/*.jar
+            ${{ env.PROJECT_DIR }}/build/compose/binaries/main/exe/*.exe
+            ${{ env.PROJECT_DIR }}/build/compose/binaries/main/msi/*.msi
+
+      - name: Publish beta release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }} (Beta)
+          body: |
+            **Beta release** of Zalith 2 Windows Support.
+
+            - Portable zip: unzip and run `Zalith2WindowsSupport\Zalith2WindowsSupport.exe` (no install needed)
+            - Jar: needs a JDK 17+ installed
+            - Exe / Msi: Windows installers
+
+            OptiFine, Fabric, Quilt, Forge (1.13+), NeoForge, Modrinth mods and modpacks are supported.
+            Microsoft sign-in needs an approved Azure app ID (see README). This is an **Unofficial Modified Version** of Zalith Launcher 2 (GPL-3.0).
+          draft: false
+          prerelease: true
+          files: |
+            ${{ env.PROJECT_DIR }}/${{ env.APP_NAME }}-windows-portable-*.zip
+            ${{ env.PROJECT_DIR }}/build/compose/jars/*.jar
+            ${{ env.PROJECT_DIR }}/build/compose/binaries/main/exe/*.exe
+            ${{ env.PROJECT_DIR }}/build/compose/binaries/main/msi/*.msi
