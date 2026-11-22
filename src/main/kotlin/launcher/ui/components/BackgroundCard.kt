@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun BackgroundCard(
     modifier: Modifier = Modifier,
-    isDark: Boolean,
     content: @Composable () -> Unit,
 ) {
     Surface(

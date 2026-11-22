@@ -1,6 +1,7 @@
 package launcher.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,19 +22,19 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import launcher.Instance
 import launcher.LoaderKind
 import launcher.ui.LauncherState
-import launcher.ui.ScalingActionButton
 import launcher.ui.components.BackgroundCard
 import launcher.ui.components.CardTitleLayout
 import kotlinx.coroutines.CoroutineScope
@@ -57,7 +58,7 @@ fun InstancesScreen(
             Text("Game paths", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
             // In our simple launcher, we just have one game dir - show it as a card
-            BackgroundCard(isDark = MaterialTheme.colorScheme.isDark, modifier = Modifier.fillMaxWidth()) {
+            BackgroundCard(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Default", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -110,7 +111,7 @@ fun InstancesScreen(
                                 "No instances yet.\nCreate one with the action button.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.TextAlign.Center,
+                                textAlign = TextAlign.Center,
                             )
                         }
                     }
@@ -127,15 +128,13 @@ fun StickyHeaderWithShadow(
     title: String,
     content: @Composable () -> Unit,
 ) {
-    val shadowElevation = androidx.compose.runtime.getValue(
-        androidx.compose.runtime.mutableStateOf(0f),
-    ) { 0f } // simplified
+    val shadowElevation = remember { mutableStateOf(0f) }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer {
-                shadowElevation = scrollState.firstVisibleItemScrollOffset / 20f
-                shadowElevation = shadowElevation.coerceIn(0f, 5f)
+                shadowElevation.value = scrollState.firstVisibleItemScrollOffset / 20f
+                shadowElevation.value = shadowElevation.value.coerceIn(0f, 5f)
             }
             .background(MaterialTheme.colorScheme.surfaceContainer),
     ) {
@@ -160,7 +159,7 @@ fun StickyHeaderWithShadow(
 @Composable
 fun InstanceRowCard(state: LauncherState, inst: Instance) {
     val isSel = inst.id == state.selectedId
-    BackgroundCard(isDark = MaterialTheme.colorScheme.isDark, modifier = Modifier
+    BackgroundCard(modifier = Modifier
         .fillMaxWidth()
         .clickable(enabled = !state.busy) { state.selectInstance(inst.id) },
     ) {

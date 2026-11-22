@@ -3,6 +3,7 @@ package launcher.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -105,7 +107,7 @@ fun VersionCardTall(
     scope: CoroutineScope,
     modifier: Modifier = Modifier,
 ) {
-    BackgroundCard(isDark = MaterialTheme.colorScheme.isDark, modifier) {
+    BackgroundCard(modifier = modifier) {
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -167,7 +169,7 @@ private fun LogPanel(state: LauncherState, modifier: Modifier = Modifier) {
     LaunchedEffect(state.log.size) {
         if (state.log.isNotEmpty()) listState.scrollToItem(state.log.size - 1)
     }
-    BackgroundCard(isDark = MaterialTheme.colorScheme.isDark, modifier) {
+    BackgroundCard(modifier = modifier) {
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row {
                 Text("Game log", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)

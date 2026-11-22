@@ -1,5 +1,6 @@
 package launcher.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -30,10 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import launcher.ui.Accent
 import launcher.ui.LauncherState
 import launcher.ui.RailScreen
-import launcher.ui.colorTheme
+import launcher.ui.ColorTheme
 import launcher.ui.components.BackgroundCard
 import launcher.ui.components.CardTitleLayout
 
@@ -57,8 +58,7 @@ fun SettingsScreen(state: LauncherState) {
                 .width(220.dp)
                 .fillMaxSize()
                 .padding(vertical = 12.dp)
-                .verticalScroll(rememberScrollState())
-                .fadeEdge(androidx.compose.foundation.lazy.LazyListState()), // simplified
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             SettingsRailItem("Account", currentTab == SettingsTab.ACCOUNT) { currentTab = SettingsTab.ACCOUNT }
@@ -73,8 +73,7 @@ fun SettingsScreen(state: LauncherState) {
             Modifier
                 .weight(1f)
                 .fillMaxSize()
-                .verticalScroll(scrollState)
-                .fadeEdge(androidx.compose.foundation.lazy.LazyListState()),
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             when (currentTab) {
