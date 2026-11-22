@@ -12,7 +12,7 @@ object GameLauncher {
         val vars = mapOf(
             "auth_player_name" to account.name,
             "version_name" to inst.id,
-            "game_directory" to Dirs.game.absolutePath,
+            "game_directory" to inst.gameDir.absolutePath,
             "assets_root" to Dirs.assets.absolutePath,
             "assets_index_name" to inst.assetsIndexId,
             "auth_uuid" to account.uuid,
@@ -30,6 +30,8 @@ object GameLauncher {
             "classpath" to cp,
             "classpath_separator" to File.pathSeparator,
             "library_directory" to Dirs.libraries.absolutePath,
+            "primary_jar" to inst.clientJar.absolutePath,
+            "primary_jar_name" to inst.clientJar.name,
         )
 
         val args = json.obj("arguments")
@@ -59,10 +61,10 @@ object GameLauncher {
     }
 
     /** Starts the game. [onLine] is called for every line of game output (on a background thread). */
-    fun start(cmd: List<String>, onLine: (String) -> Unit): Process {
-        Dirs.game.mkdirs()
+    fun start(cmd: List<String>, workDir: File, onLine: (String) -> Unit): Process {
+        workDir.mkdirs()
         val p = ProcessBuilder(cmd)
-            .directory(Dirs.game)
+            .directory(workDir)
             .redirectErrorStream(true)
             .start()
         Thread { p.inputStream.bufferedReader().forEachLine(onLine) }

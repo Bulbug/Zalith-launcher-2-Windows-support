@@ -8,7 +8,7 @@ object AppInfo {
     // must not contain "ZalithLauncher" or "ZL" in its name and must say it is an
     // "Unofficial Modified Version" on the main screen.
     const val NAME = "Desk Launcher"
-    const val VERSION = "0.1.0"
+    const val VERSION = "0.4.0"
     const val NOTICE = "Unofficial Modified Version"
 }
 
@@ -18,24 +18,23 @@ object Dirs {
     val libraries = File(root, "libraries")
     val assets = File(root, "assets")
     val runtimes = File(root, "runtimes")
-    val game = File(root, "game") // working directory: saves, mods, resourcepacks...
+    val game = File(root, "game")           // old shared folder (vanilla, before instances existed)
+    val instances = File(root, "instances") // one folder per instance: saves, mods, config...
 }
 
 data class Settings(
     val username: String = "Player",
     val ramMb: Int = 2048,
-    val version: String = "",
-    val loader: String = "VANILLA",
     val account: String = "offline", // "offline" or "microsoft"
+    val instance: String = "",       // id of the selected instance
 ) {
     fun save() {
         Dirs.root.mkdirs()
         val p = Properties()
         p.setProperty("username", username)
         p.setProperty("ram", ramMb.toString())
-        p.setProperty("version", version)
-        p.setProperty("loader", loader)
         p.setProperty("account", account)
+        p.setProperty("instance", instance)
         File(Dirs.root, "settings.properties").outputStream().use { p.store(it, null) }
     }
 
@@ -48,9 +47,8 @@ data class Settings(
             return Settings(
                 username = p.getProperty("username", "Player"),
                 ramMb = p.getProperty("ram", "2048").toIntOrNull() ?: 2048,
-                version = p.getProperty("version", ""),
-                loader = p.getProperty("loader", "VANILLA"),
                 account = p.getProperty("account", "offline"),
+                instance = p.getProperty("instance", ""),
             )
         }
     }

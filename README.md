@@ -51,15 +51,35 @@ Until then, use the **Offline** account.
 
 The login (a refresh token) is saved as plain JSON in `%APPDATA%\.desklauncher\microsoft_account.json`.
 
+## Instances and modpacks
+
+An **instance** is one setup: a Minecraft version + mod loader, with its own saves, mods and
+settings in `%APPDATA%\.desklauncher\instances\<name>`. Make one with **New**, or get one
+from a modpack:
+
+- **Import .mrpack**: pick a Modrinth modpack file you downloaded.
+- **Browse packs**: search Modrinth modpacks and install one with a click.
+
+A modpack install creates the instance and downloads its mods. Minecraft itself (and Forge,
+NeoForge, Fabric or Quilt) is downloaded the first time you press PLAY.
+
 ## What works / what doesn't yet
 
-Works: vanilla release/snapshot/old versions (about 1.6 and newer), **Fabric and Quilt**
-(newest stable loader, picked automatically), automatic Java download, parallel downloads
-with checksums, log4j fix config, offline accounts, Microsoft login (once your app ID is approved).
-Mods go in the **Mods folder** button's location.
+Works (written, not yet tested by a real build - report problems!):
+- Vanilla release/snapshot/old versions (about 1.6 and newer), automatic Java download,
+  parallel downloads with checksums, log4j fix config.
+- Offline accounts, and Microsoft login once your app ID is approved.
+- **Fabric and Quilt**, and **Forge and NeoForge** for Minecraft 1.13+ (experimental; they use
+  the official installers). Modpacks can pin an exact loader version.
+- **Mod browser** (Modrinth): search, install with required dependencies, remove.
+- **Instances** and **Modrinth modpacks** (.mrpack).
 
-Not yet (phase 3+): Forge/NeoForge/OptiFine, mod and modpack browser (Modrinth/CurseForge),
-multiple instances, Zalith's UI screens.
+Not yet: OptiFine, CurseForge, CurseForge-format modpacks, Forge for Minecraft 1.12 and older,
+Zalith's UI screens.
+
+Upgrading from 0.3: the old `instances\<version>-<loader>` folders (without an `instance.json`)
+are left alone and don't show up in the list. Copy their saves into a new instance if you
+want them.
 
 ## Automatic builds (GitHub Actions)
 

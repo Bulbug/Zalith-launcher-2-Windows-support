@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.ZipFile
 
 /** Everything the launcher needs after a version has been downloaded. */
-class Installed(
+data class Installed(
     val id: String,                       // used as ${version_name}
     val json: JsonObject,                 // merged version JSON (vanilla + loader)
     val javaMajor: Int,
@@ -26,6 +26,7 @@ class Installed(
     val virtualAssetsDir: File?,          // only for very old versions
     val logConfig: File?,
     val logArg: String?,
+    val gameDir: File = Dirs.game,        // where saves / mods / config live
 )
 
 private class Dl(val url: String, val dest: File, val sha1: String?)
@@ -41,18 +42,22 @@ object GameInstaller {
     suspend fun install(
         entry: VersionEntry,
         loader: LoaderKind,
+        loaderVersion: String?,
+        gameDir: File,
         status: (String) -> Unit,
         progress: (done: Int, total: Int) -> Unit,
     ): Installed {
-        val base = installVanilla(entry, status, progress)
-        if (loader == LoaderKind.VANILLA) return base
-        return addLoader(base, entry, loader, status, progress)
+        val base = installVanilla(entry, gameDir, status, progress)
+        val result = if (loader == LoaderKind.VANILLA) base
+        else addLoader(base, entry, loader, loaderVersion, status, progress)
+        return result.copy(gameDir = gameDir)
     }
 
     // ------------------------------------------------------------------ vanilla
 
     private suspend fun installVanilla(
         entry: VersionEntry,
+        gameDir: File,
         status: (String) -> Unit,
         progress: (Int, Int) -> Unit,
     ): Installed = withContext(Dispatchers.IO) {
@@ -99,7 +104,7 @@ object GameInstaller {
         val virtual = index.get("virtual")?.asBoolean == true
         val mapToRes = index.get("map_to_resources")?.asBoolean == true
         if (virtual || mapToRes) {
-            val target = if (virtual) File(Dirs.assets, "virtual/$aid") else File(Dirs.game, "resources")
+            val target = if (virtual) File(Dirs.assets, "virtual/$aid") else File(gameDir, "resources")
             for ((name, v) in objects.entrySet()) {
                 val h = v.asJsonObject.str("hash")!!
                 val src = File(Dirs.assets, "objects/${h.substring(0, 2)}/$h")
@@ -137,26 +142,50 @@ object GameInstaller {
         )
     }
 
-    // ------------------------------------------------------------------ Fabric / Quilt
+    // ------------------------------------------------------------------ loaders
 
     private suspend fun addLoader(
         base: Installed,
         entry: VersionEntry,
         loader: LoaderKind,
+        loaderVersion: String?,
         status: (String) -> Unit,
         progress: (Int, Int) -> Unit,
     ): Installed = withContext(Dispatchers.IO) {
-        status("Setting up ${loader.label}…")
-        val text = try {
-            loader.profileJson(entry.id)
-        } catch (e: IOException) {
-            throw IllegalStateException("${loader.label} isn't available for Minecraft ${entry.id}")
+        val text: String
+        if (loader.usesInstaller) {
+            // Forge / NeoForge: run the official installer headless into our folders
+            status("Checking Java for the ${loader.label} installer…")
+            val java = JavaRuntime.ensure(base.javaMajor) { status(it) }
+            val installedId = try {
+                ForgeInstaller.install(loader, entry.id, loaderVersion, java, status)
+            } catch (e: IOException) {
+                throw IllegalStateException("${loader.label} couldn't be installed for Minecraft ${entry.id}: ${e.message}")
+            }
+            text = File(Dirs.versions, "$installedId/$installedId.json").readText()
+        } else {
+            // Fabric / Quilt: their meta server hands us a ready-made version profile
+            status("Setting up ${loader.label}…")
+            text = try {
+                loader.profileJson(entry.id, loaderVersion)
+            } catch (e: IOException) {
+                throw IllegalStateException("${loader.label} isn't available for Minecraft ${entry.id}")
+            }
+            val id = parseJson(text).str("id") ?: error("The ${loader.label} profile is missing an id")
+            File(Dirs.versions, id).mkdirs()
+            File(Dirs.versions, "$id/$id.json").writeText(text)
         }
-        val lj = parseJson(text)
+        mergeLoader(base, parseJson(text), loader, status, progress)
+    }
+
+    private suspend fun mergeLoader(
+        base: Installed,
+        lj: JsonObject,
+        loader: LoaderKind,
+        status: (String) -> Unit,
+        progress: (Int, Int) -> Unit,
+    ): Installed {
         val lid = lj.str("id") ?: error("The ${loader.label} profile is missing an id")
-        val ldir = File(Dirs.versions, lid)
-        ldir.mkdirs()
-        File(ldir, "$lid.json").writeText(text)
 
         val plan = collectLibs(lj)
         downloadAll(plan.tasks, "Downloading ${loader.label} libraries", status, progress)
@@ -175,18 +204,14 @@ object GameInstaller {
             arr.addAll(extra)
         }
 
-        Installed(
-            id = lid,
-            json = mj,
-            javaMajor = base.javaMajor,
-            libs = merged,
-            clientJar = base.clientJar,
-            nativesDir = base.nativesDir,
-            assetsIndexId = base.assetsIndexId,
-            virtualAssetsDir = base.virtualAssetsDir,
-            logConfig = base.logConfig,
-            logArg = base.logArg,
-        )
+        // Forge's ignore list refers to "<version_name>.jar", so give the game jar that name
+        val childJar = File(Dirs.versions, "$lid/$lid.jar")
+        if (!childJar.isFile) {
+            childJar.parentFile.mkdirs()
+            base.clientJar.copyTo(childJar)
+        }
+
+        return base.copy(id = lid, json = mj, libs = merged, clientJar = childJar)
     }
 
     // ------------------------------------------------------------------ helpers
