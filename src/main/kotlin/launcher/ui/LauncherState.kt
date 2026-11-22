@@ -1,0 +1,292 @@
+package launcher.ui
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import launcher.Account
+import launcher.AccountStore
+import launcher.AuthException
+import launcher.Dirs
+import launcher.DeviceCode
+import launcher.GameInstaller
+import launcher.GameLauncher
+import launcher.Instance
+import launcher.InstanceStore
+import launcher.JavaRuntime
+import launcher.LoaderKind
+import launcher.Manifest
+import launcher.MicrosoftAuth
+import launcher.ModpackInstaller
+import launcher.Settings
+import launcher.StoredAccount
+import launcher.VersionEntry
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+
+/** Navigation targets for the left rail. */
+enum class RailScreen { HOME, DOWNLOAD, INSTANCES, SETTINGS }
+
+/** Which category is open inside the Download screen. */
+enum class DownloadTab { MODS, MODPACKS }
+
+/**
+ * All launcher state + actions, hoisted out of composables so the screens are thin views.
+ * Created once in App(); survives rail navigation.
+ */
+class LauncherState(private val scope: CoroutineScope) {
+    // ---- theme ----
+    var dark by mutableStateOf(Settings.load().dark)
+    var accent by mutableStateOf(
+        runCatching { Accent.valueOf(Settings.load().accent) }.getOrDefault(Accent.GREEN)
+    )
+
+    fun applyDark(v: Boolean) {
+        dark = v
+        currentSettings { it.copy(dark = v) }
+    }
+
+    fun applyAccent(a: Accent) {
+        accent = a
+        currentSettings { it.copy(accent = a.name) }
+    }
+
+    // ---- data ----
+    var versions by mutableStateOf<List<VersionEntry>>(emptyList())
+    var instances by mutableStateOf(InstanceStore.list())
+    var selectedId by mutableStateOf(Settings.load().instance)
+    var msAccount by mutableStateOf(AccountStore.load())
+
+    val selected: Instance? get() = instances.firstOrNull { it.id == selectedId }
+
+    // ---- run state ----
+    var status by mutableStateOf("Loading versions…")
+    var progress by mutableStateOf<Float?>(null)
+    var busy by mutableStateOf(false)
+    val log = mutableStateListOf<String>()
+
+    // ---- dialogs ----
+    var deviceCode by mutableStateOf<DeviceCode?>(null)
+    var showNewInstance by mutableStateOf(false)
+    var deleteTarget by mutableStateOf<Instance?>(null)
+    private var signInJob: Job? = null
+
+    init {
+        scope.launch {
+            try {
+                versions = withContext(Dispatchers.IO) { Manifest.load() }
+                status = "Ready"
+            } catch (e: Exception) {
+                status = "Couldn't load versions: ${e.message}"
+            }
+        }
+    }
+
+    fun addLog(line: String) {
+        log.add(line)
+        if (log.size > 3000) repeat(500) { log.removeAt(0) }
+    }
+
+    fun refreshInstances(select: String? = null) {
+        instances = InstanceStore.list()
+        if (select != null) selectedId = select
+        else if (instances.none { it.id == selectedId }) selectedId = instances.firstOrNull()?.id ?: ""
+    }
+
+    fun selectInstance(id: String) {
+        if (!busy) selectedId = id
+    }
+
+    private inline fun currentSettings(update: (Settings) -> Settings) {
+        val saved = Settings.load()
+        update(saved).save()
+    }
+
+    // ---- account ----
+
+    fun signIn() {
+        if (signInJob?.isActive == true) return
+        signInJob = scope.launch {
+            try {
+                status = "Contacting Microsoft…"
+                val dc = withContext(Dispatchers.IO) { MicrosoftAuth.requestDeviceCode() }
+                deviceCode = dc
+                openBrowser(dc.verificationUri)
+                val tokens = withContext(Dispatchers.IO) {
+                    MicrosoftAuth.pollForToken(dc) { !isActive }
+                }
+                status = "Signing in to Xbox and Minecraft…"
+                val session = withContext(Dispatchers.IO) { MicrosoftAuth.minecraftSession(tokens.access) }
+                val stored = StoredAccount(session.name, session.uuid, tokens.refresh)
+                AccountStore.save(stored)
+                msAccount = stored
+                status = "Signed in as ${session.name}"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status = "Sign-in failed: ${e.message}"
+            } finally {
+                deviceCode = null
+            }
+        }
+    }
+
+    fun cancelSignIn() {
+        signInJob?.cancel()
+        deviceCode = null
+        status = "Sign-in cancelled"
+    }
+
+    fun signOut() {
+        AccountStore.clear()
+        msAccount = null
+    }
+
+    // ---- instances ----
+
+    fun createInstance(name: String, mc: String, loader: LoaderKind, loaderVersion: String?) {
+        val inst = InstanceStore.create(name, mc, loader, loaderVersion)
+        refreshInstances(inst.id)
+        showNewInstance = false
+    }
+
+    fun deleteInstance(inst: Instance) {
+        InstanceStore.delete(inst)
+        deleteTarget = null
+        refreshInstances()
+    }
+
+    fun importModpack(file: File?, onInstalled: (Instance) -> Unit) {
+        if (file == null) return
+        busy = true
+        progress = null
+        status = "Installing modpack…"
+        scope.launch {
+            try {
+                val inst = withContext(Dispatchers.IO) {
+                    ModpackInstaller.install(
+                        file,
+                        status = { status = it },
+                        progress = { d, t -> progress = if (t > 0) d.toFloat() / t else null },
+                    )
+                }
+                refreshInstances(inst.id)
+                onInstalled(inst)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status = "Modpack install failed: ${e.message}"
+            } finally {
+                busy = false
+                progress = null
+            }
+        }
+    }
+
+    // ---- play ----
+
+    fun play() {
+        val inst = selected
+        if (inst == null) {
+            status = "Create or select an instance first"
+            return
+        }
+        val entry = versions.firstOrNull { it.id == inst.mc }
+            ?: File(Dirs.versions, "${inst.mc}/${inst.mc}.json").takeIf { it.isFile }
+                ?.let { VersionEntry(inst.mc, "release", "", null) }
+        if (entry == null) {
+            status = "Minecraft ${inst.mc} isn't in the version list (check your internet connection)"
+            return
+        }
+        val name = Settings.load().username.trim()
+        val microsoft = Settings.load().account == "microsoft"
+        if (microsoft) {
+            if (AccountStore.load() == null) {
+                status = "Sign in with Microsoft first"
+                return
+            }
+        } else if (!Regex("[A-Za-z0-9_]{3,16}").matches(name)) {
+            status = "Username must be 3-16 letters, numbers or _"
+            return
+        }
+        val ramMb = Settings.load().ramMb
+        Settings(name, ramMb, Settings.load().account, inst.id,
+            dark, accent.name).save()
+
+        busy = true
+        log.clear()
+        scope.launch {
+            try {
+                val account = if (microsoft) {
+                    status = "Refreshing Microsoft login…"
+                    val stored = AccountStore.load() ?: throw AuthException("Sign in with Microsoft first")
+                    withContext(Dispatchers.IO) { MicrosoftAuth.accountFromStored(stored) }
+                } else {
+                    Account.offline(name)
+                }
+                val installed = GameInstaller.install(
+                    entry,
+                    inst.loader,
+                    inst.loaderVersion,
+                    inst.dir,
+                    status = { status = it },
+                    progress = { d, t -> progress = if (t > 0) d.toFloat() / t else null },
+                )
+                progress = null
+                status = "Checking Java…"
+                val java = withContext(Dispatchers.IO) {
+                    JavaRuntime.ensure(installed.javaMajor) { status = it }
+                }
+                status = "Launching…"
+                val cmd = GameLauncher.buildCommand(installed, java, account, ramMb)
+                val proc = withContext(Dispatchers.IO) {
+                    GameLauncher.start(cmd, installed.gameDir) { line ->
+                        scope.launch(Dispatchers.Main) { addLog(line) }
+                    }
+                }
+                status = "Minecraft is running"
+                val code = withContext(Dispatchers.IO) { proc.waitFor() }
+                status = "Game closed (exit code $code)"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status = "Error: ${e.message}"
+                addLog(e.stackTraceToString())
+            } finally {
+                busy = false
+                progress = null
+            }
+        }
+    }
+
+    companion object {
+        fun openBrowser(url: String) {
+            try {
+                if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().browse(java.net.URI(url))
+            } catch (_: Exception) {
+            }
+        }
+
+        fun openFolder(dir: File) {
+            dir.mkdirs()
+            try {
+                if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(dir)
+            } catch (_: Exception) {
+            }
+        }
+
+        fun pickMrpack(): File? {
+            val dlg = java.awt.FileDialog(null as java.awt.Frame?, "Choose a Modrinth modpack (.mrpack)", java.awt.FileDialog.LOAD)
+            dlg.setFilenameFilter { _, name -> name.endsWith(".mrpack", ignoreCase = true) }
+            dlg.isVisible = true // blocks until the dialog is closed
+            val file = dlg.file ?: return null
+            return File(dlg.directory, file)
+        }
+    }
+}

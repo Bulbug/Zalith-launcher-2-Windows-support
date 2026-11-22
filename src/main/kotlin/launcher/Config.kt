@@ -27,6 +27,8 @@ data class Settings(
     val ramMb: Int = 2048,
     val account: String = "offline", // "offline" or "microsoft"
     val instance: String = "",       // id of the selected instance
+    val dark: Boolean = true,        // dark or light theme
+    val accent: String = "GREEN",    // Accent.name in ui/Theme.kt
 ) {
     fun save() {
         Dirs.root.mkdirs()
@@ -35,6 +37,8 @@ data class Settings(
         p.setProperty("ram", ramMb.toString())
         p.setProperty("account", account)
         p.setProperty("instance", instance)
+        p.setProperty("dark", dark.toString())
+        p.setProperty("accent", accent)
         File(Dirs.root, "settings.properties").outputStream().use { p.store(it, null) }
     }
 
@@ -49,6 +53,8 @@ data class Settings(
                 ramMb = p.getProperty("ram", "2048").toIntOrNull() ?: 2048,
                 account = p.getProperty("account", "offline"),
                 instance = p.getProperty("instance", ""),
+                dark = p.getProperty("dark", "true").toBooleanStrictOrNull() ?: true,
+                accent = p.getProperty("accent", "GREEN"),
             )
         }
     }
