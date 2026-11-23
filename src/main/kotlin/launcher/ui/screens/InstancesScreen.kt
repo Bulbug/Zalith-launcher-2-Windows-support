@@ -67,7 +67,7 @@ fun InstancesScreen(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { LauncherState.openFolder(launcher.Dirs.root) }) { Text("Open") }
-                        OutlinedButton(onClick = { /* TODO: add new path */ }) { Text("Add new path") }
+                        OutlinedButton(onClick = { LauncherState.showNewInstanceDialog() }) { Text("Add new path") }
                     }
                 }
             }

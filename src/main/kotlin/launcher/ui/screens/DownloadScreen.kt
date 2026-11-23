@@ -75,17 +75,17 @@ fun DownloadScreen(
             Spacer(Modifier.height(12.dp))
             TabMenuCategory("Modpack", tab == DownloadTab.MODPACKS) { tab = DownloadTab.MODPACKS }
             TabMenuCategory("Mod", tab == DownloadTab.MODS) { tab = DownloadTab.MODS }
-            TabMenuCategory("Resource Pack") { /* TODO */ }
-            TabMenuCategory("Saves") { /* TODO */ }
-            TabMenuCategory("Shaders") { /* TODO */ }
+            TabMenuCategory("Resource Pack") { /* TODO: implement Resource Pack tab */ }
+            TabMenuCategory("Saves") { /* TODO: implement Saves tab */ }
+            TabMenuCategory("Shaders") { /* TODO: implement Shaders tab */ }
             Spacer(Modifier.height(12.dp))
             androidx.compose.material3.HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 modifier = Modifier.fillMaxWidth(0.4f).padding(start = 8.dp),
             )
             Spacer(Modifier.height(12.dp))
-            TabMenuCategory("Search by ID") { /* TODO */ }
-            TabMenuCategory("Favorites") { /* TODO */ }
+            TabMenuCategory("Search by ID") { /* TODO: implement Search by ID tab */ }
+            TabMenuCategory("Favorites") { /* TODO: implement Favorites tab */ }
         }
 
         // ---- Right content ----
