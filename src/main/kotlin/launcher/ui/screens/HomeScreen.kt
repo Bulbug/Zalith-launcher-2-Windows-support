@@ -125,7 +125,7 @@ fun HomeScreen(
                 state.showNewInstance = true
             }
             ActionCard("Browse modpacks", "Install from Modrinth", Modifier.weight(1f)) {
-                // onNavigate(RailScreen.DOWNLOAD)
+                onNavigate(RailScreen.DOWNLOAD)
             }
             ActionCard("Import .mrpack", "Install a downloaded pack", Modifier.weight(1f)) {
                 state.importModpack(LauncherState.pickMrpack()) {}
@@ -237,8 +237,8 @@ fun VersionCardTall(
             }
             Spacer(Modifier.height(2.dp))
             Button(
-                onClick = { /* LauncherState.play(inst) */ },
-                enabled = true,
+                onClick = { scope.launch { state.play() } },
+                enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
             ) {
                 Text("PLAY", fontSize = 18.sp)
@@ -266,7 +266,7 @@ fun VersionCardRow(
                 Text(inst.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(inst.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Button(onClick = { /* LauncherState.play(inst) */ }) { Text("PLAY") }
+            Button(onClick = { scope.launch { state.play() } }, enabled = !state.busy) { Text("PLAY") }
         }
     }
 }
@@ -286,7 +286,7 @@ fun VersionCardCompact(
         ) {
             InstanceIconZL2(inst, Modifier.size(40.dp))
             Text(inst.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Button(onClick = { /* LauncherState.play(inst) */ }) { Text("▶") }
+            Button(onClick = { scope.launch { state.play() } }, enabled = !state.busy) { Text("▶") }
         }
     }
 }

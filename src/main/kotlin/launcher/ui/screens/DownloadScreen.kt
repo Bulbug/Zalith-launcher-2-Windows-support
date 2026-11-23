@@ -75,17 +75,17 @@ fun DownloadScreen(
             Spacer(Modifier.height(12.dp))
             TabMenuCategory("Modpack", tab == DownloadTab.MODPACKS) { tab = DownloadTab.MODPACKS }
             TabMenuCategory("Mod", tab == DownloadTab.MODS) { tab = DownloadTab.MODS }
-            TabMenuCategory("Resource Pack") { /* TODO: implement Resource Pack tab */ }
-            TabMenuCategory("Saves") { /* TODO: implement Saves tab */ }
-            TabMenuCategory("Shaders") { /* TODO: implement Shaders tab */ }
+            TabMenuCategory("Resource Pack", tab == DownloadTab.RESOURCE_PACKS) { tab = DownloadTab.RESOURCE_PACKS }
+            TabMenuCategory("Saves", tab == DownloadTab.SAVES) { tab = DownloadTab.SAVES }
+            TabMenuCategory("Shaders", tab == DownloadTab.SHADERS) { tab = DownloadTab.SHADERS }
             Spacer(Modifier.height(12.dp))
             androidx.compose.material3.HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 modifier = Modifier.fillMaxWidth(0.4f).padding(start = 8.dp),
             )
             Spacer(Modifier.height(12.dp))
-            TabMenuCategory("Search by ID") { /* TODO: implement Search by ID tab */ }
-            TabMenuCategory("Favorites") { /* TODO: implement Favorites tab */ }
+            TabMenuCategory("Search by ID", tab == DownloadTab.SEARCH_ID) { tab = DownloadTab.SEARCH_ID }
+            TabMenuCategory("Favorites", tab == DownloadTab.FAVORITES) { tab = DownloadTab.FAVORITES }
         }
 
         // ---- Right content ----
@@ -93,6 +93,11 @@ fun DownloadScreen(
             DownloadTab.MODS -> ModsPane(state)
             DownloadTab.MODPACKS -> ModpacksPane(state)
             DownloadTab.GAME -> Box(Modifier.fillMaxSize()) { Text("Game tab - TODO", style = MaterialTheme.typography.titleMedium) }
+            DownloadTab.RESOURCE_PACKS -> ResourcePacksPane(state)
+            DownloadTab.SAVES -> SavesPane(state)
+            DownloadTab.SHADERS -> ShadersPane(state)
+            DownloadTab.SEARCH_ID -> SearchByIdPane(state)
+            DownloadTab.FAVORITES -> FavoritesPane(state)
         }
     }
 }
@@ -385,4 +390,114 @@ private fun formatDownloads(n: Long): String = when {
     n >= 1_000_000 -> "%.1fM".format(n / 1_000_000f)
     n >= 1_000 -> "%.1fk".format(n / 1_000f)
     else -> n.toString()
+}
+
+// ---------------------------------------------------------------- Resource Packs pane
+
+@Composable
+private fun ResourcePacksPane(state: LauncherState) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Resource Packs", style = MaterialTheme.typography.titleLarge)
+            Text("Coming soon - Browse and install resource packs from Modrinth",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Saves pane
+
+@Composable
+private fun SavesPane(state: LauncherState) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Saves", style = MaterialTheme.typography.titleLarge)
+            Text("Coming soon - Manage and import world saves",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Shaders pane
+
+@Composable
+private fun ShadersPane(state: LauncherState) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Shaders", style = MaterialTheme.typography.titleLarge)
+            Text("Coming soon - Browse and install shader packs",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Search by ID pane
+
+@Composable
+private fun SearchByIdPane(state: LauncherState) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Search by ID", style = MaterialTheme.typography.titleLarge)
+            Text("Coming soon - Search Modrinth projects by project ID",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Favorites pane
+
+@Composable
+private fun FavoritesPane(state: LauncherState) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Favorites", style = MaterialTheme.typography.titleLarge)
+            Text("Coming soon - Your favorited mods, packs, and shaders",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }

@@ -67,7 +67,7 @@ fun InstancesScreen(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { LauncherState.openFolder(launcher.Dirs.root) }) { Text("Open") }
-                        OutlinedButton(onClick = { LauncherState.showNewInstanceDialog() }) { Text("Add new path") }
+                        OutlinedButton(onClick = { state.showNewInstanceDialog() }) { Text("Add new path") }
                     }
                 }
             }
@@ -80,9 +80,10 @@ fun InstancesScreen(
             Modifier.weight(1f).fillMaxSize().padding(vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            val scrollState = remember { androidx.compose.foundation.lazy.LazyListState() }
             // Sticky header with dynamic shadow
             StickyHeaderWithShadow(
-                scrollState = remember { androidx.compose.foundation.lazy.LazyListState() },
+                scrollState = scrollState,
                 title = "Installed versions",
             ) {
                 Spacer(Modifier.height(12.dp))
@@ -90,14 +91,14 @@ fun InstancesScreen(
 
             // Filter chips row
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChipItem("All", true) {}
-                FilterChipItem("Vanilla", false) {}
-                FilterChipItem("Modloader", false) {}
-                FilterChipItem("Modpack", false) {}
+                FilterChipItem("All", true) { /* TODO: filter all */ }
+                FilterChipItem("Vanilla", false) { /* TODO: filter vanilla */ }
+                FilterChipItem("Modloader", false) { /* TODO: filter modloader */ }
+                FilterChipItem("Modpack", false) { /* TODO: filter modpack */ }
             }
 
             // Instance list
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(state = scrollState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(state.instances, key = { it.id }) { inst ->
                     InstanceRowCard(state, inst)
                 }
@@ -147,8 +148,8 @@ fun StickyHeaderWithShadow(
             ) {
                 Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Button(onClick = { /* refresh */ }) { Text("Refresh") }
-                Button(onClick = { /* install new */ }) { Text("Install new") }
+                Button(onClick = { /* TODO: refresh versions */ }) { Text("Refresh") }
+                Button(onClick = { /* TODO: show new instance dialog */ }) { Text("Install new") }
             }
             content()
         }

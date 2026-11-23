@@ -35,7 +35,7 @@ import java.io.File
 enum class RailScreen { HOME, DOWNLOAD, INSTANCES, SETTINGS }
 
 /** Which category is open inside the Download screen. */
-enum class DownloadTab { MODS, MODPACKS, GAME }
+enum class DownloadTab { MODS, MODPACKS, GAME, RESOURCE_PACKS, SAVES, SHADERS, SEARCH_ID, FAVORITES }
 
 /**
  * All launcher state + actions, hoisted out of composables so the screens are thin views.
@@ -76,6 +76,9 @@ class LauncherState(private val scope: CoroutineScope) {
     // ---- dialogs ----
     var deviceCode by mutableStateOf<DeviceCode?>(null)
     var showNewInstance by mutableStateOf(false)
+    fun showNewInstanceDialog() {
+        showNewInstance = true
+    }
     var deleteTarget by mutableStateOf<Instance?>(null)
     private var signInJob: Job? = null
 
