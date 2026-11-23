@@ -1,11 +1,15 @@
 package launcher
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -16,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -36,6 +41,7 @@ fun App() {
     val scope = rememberCoroutineScope()
     val state = remember { LauncherState(scope) }
     val theme = rememberAppTheme()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Sync theme state from saved settings
     LaunchedEffect(Unit) {
@@ -43,26 +49,43 @@ fun App() {
         state.colorTheme = theme.colorTheme
     }
 
+    // Show toasts
+    LaunchedEffect(state.toastMessage) {
+        val msg = state.toastMessage
+        if (msg != null) {
+            snackbarHostState.showSnackbar(msg)
+            state.toastMessage = null
+        }
+    }
+
     AppTheme(isDark = state.dark, colorTheme = state.colorTheme) {
         Surface(Modifier.fillMaxSize()) {
-            Column {
-                TopBar(
-                    currentScreen = state.screen,
-                    onBack = { state.screen = RailScreen.HOME },
-                    onHome = { state.screen = RailScreen.HOME },
-                    onNavigate = { state.screen = it },
-                    onTaskMenu = { },
-                    onFileManager = { LauncherState.openFolder(launcher.Dirs.root) },
-                    taskRunning = state.busy,
-                    taskProgress = state.progress,
-                )
-                Crossfade(state.screen) { screen ->
-                    when (screen) {
-                        RailScreen.HOME -> HomeScreen(state, onNavigate = { state.screen = it }, scope = scope)
-                        RailScreen.DOWNLOAD -> DownloadScreen(state)
-                        RailScreen.INSTANCES -> InstancesScreen(state)
-                        RailScreen.SETTINGS -> SettingsScreen(state)
+            Box(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize()) {
+                    TopBar(
+                        currentScreen = state.screen,
+                        onBack = { state.screen = RailScreen.HOME },
+                        onHome = { state.screen = RailScreen.HOME },
+                        onNavigate = { state.screen = it },
+                        onTaskMenu = { },
+                        onFileManager = { LauncherState.openFolder(launcher.Dirs.root) },
+                        taskRunning = state.busy,
+                        taskProgress = state.progress,
+                    )
+                    Crossfade(state.screen) { screen ->
+                        when (screen) {
+                            RailScreen.HOME -> HomeScreen(state, onNavigate = { state.screen = it }, scope = scope)
+                            RailScreen.DOWNLOAD -> DownloadScreen(state)
+                            RailScreen.INSTANCES -> InstancesScreen(state)
+                            RailScreen.SETTINGS -> SettingsScreen(state)
+                        }
                     }
+                }
+                SnackbarHost(snackbarHostState) { data ->
+                    androidx.compose.material3.Snackbar(
+                        data,
+                        modifier = Modifier.padding(16.dp),
+                    )
                 }
             }
         }

@@ -78,7 +78,7 @@ fun SettingsScreen(state: LauncherState) {
         ) {
             when (currentTab) {
                 SettingsTab.ACCOUNT -> AccountSection(state)
-                SettingsTab.MEMORY -> MemorySection(username, ram)
+                SettingsTab.MEMORY -> MemorySection(username, ram, onUsernameChange = { username = it }, onRamChange = { ram = it })
                 SettingsTab.APPEARANCE -> AppearanceSection(state)
                 SettingsTab.FOLDERS -> FoldersSection(state)
                 SettingsTab.ABOUT -> AboutSection()
@@ -137,13 +137,18 @@ private fun AccountSection(state: LauncherState) {
 }
 
 @Composable
-private fun MemorySection(username: String, ram: String) {
+private fun MemorySection(
+    username: String,
+    ram: String,
+    onUsernameChange: (String) -> Unit,
+    onRamChange: (String) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         CardTitleLayout("Offline profile") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = username,
-                    onValueChange = { /* update via parent */ },
+                    onValueChange = onUsernameChange,
                     label = { Text("Username (offline mode)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -159,7 +164,7 @@ private fun MemorySection(username: String, ram: String) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = ram,
-                    onValueChange = { /* update via parent */ },
+                    onValueChange = onRamChange,
                     label = { Text("RAM (MB)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -167,8 +172,8 @@ private fun MemorySection(username: String, ram: String) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(1024, 2048, 4096, 8192).forEach { v ->
                         FilterChip(
-                            selected = false, // would need parent state
-                            onClick = { /* ram = v.toString() */ },
+                            selected = ram == v.toString(),
+                            onClick = { onRamChange(v.toString()) },
                             label = { Text("${v / 1024}G") },
                         )
                     }

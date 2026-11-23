@@ -39,6 +39,44 @@ object Modrinth {
         return toHits(parseJson(Http.getString(url)).arr("hits"))
     }
 
+    fun searchResourcePacks(query: String, mc: String): List<ModHit> {
+        val facets = JsonArray()
+        facets.add(JsonArray().apply { add("project_type:resourcepack") })
+        if (mc.isNotBlank()) {
+            facets.add(JsonArray().apply { add("versions:$mc") })
+        }
+        val index = if (query.isBlank()) "downloads" else "relevance"
+        val url = "$API/search?query=${enc(query)}&facets=${enc(facets.toString())}&limit=30&index=$index"
+        return toHits(parseJson(Http.getString(url)).arr("hits"))
+    }
+
+    fun searchShaders(query: String, mc: String): List<ModHit> {
+        val facets = JsonArray()
+        facets.add(JsonArray().apply { add("project_type:shader") })
+        if (mc.isNotBlank()) {
+            facets.add(JsonArray().apply { add("versions:$mc") })
+        }
+        val index = if (query.isBlank()) "downloads" else "relevance"
+        val url = "$API/search?query=${enc(query)}&facets=${enc(facets.toString())}&limit=30&index=$index"
+        return toHits(parseJson(Http.getString(url)).arr("hits"))
+    }
+
+    fun getProject(projectId: String): ModHit? {
+        try {
+            val url = "$API/project/${enc(projectId)}"
+            val json = parseJson(Http.getString(url)).asJsonObject
+            return ModHit(
+                projectId = json.str("id") ?: projectId,
+                title = json.str("title") ?: "?",
+                author = json.str("team") ?: "",
+                description = json.str("description") ?: "",
+                downloads = json.get("downloads")?.asLong ?: 0L,
+            )
+        } catch (e: Exception) {
+            return null
+        }
+    }
+
     private fun toHits(hits: JsonArray?): List<ModHit> =
         (hits ?: JsonArray()).map { it.asJsonObject }.map {
             ModHit(

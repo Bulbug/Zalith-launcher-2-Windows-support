@@ -73,6 +73,21 @@ class LauncherState(private val scope: CoroutineScope) {
     var busy by mutableStateOf(false)
     val log = mutableStateListOf<String>()
 
+    // ---- toast/snackbar ----
+    var toastMessage by mutableStateOf<String?>(null)
+    var toastType by mutableStateOf<ToastType>(ToastType.INFO)
+
+    fun showToast(message: String, type: ToastType = ToastType.INFO) {
+        toastMessage = message
+        toastType = type
+        scope.launch {
+            kotlinx.coroutines.delay(3000)
+            if (toastMessage == message) toastMessage = null
+        }
+    }
+
+    enum class ToastType { INFO, SUCCESS, WARNING, ERROR }
+
     // ---- dialogs ----
     var deviceCode by mutableStateOf<DeviceCode?>(null)
     var showNewInstance by mutableStateOf(false)

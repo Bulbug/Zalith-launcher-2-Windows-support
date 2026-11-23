@@ -13,6 +13,9 @@ class Instance(
 ) {
     val dir: File get() = File(Dirs.instances, id)
     val modsDir: File get() = File(dir, "mods")
+    val resourcePacksDir: File get() = File(dir, "resourcepacks")
+    val shadersDir: File get() = File(dir, "shaderpacks")
+    val savesDir: File get() = File(dir, "saves")
     val subtitle: String
         get() = "$mc - ${loader.label}" + (loaderVersion?.let { " $it" } ?: "")
 }
