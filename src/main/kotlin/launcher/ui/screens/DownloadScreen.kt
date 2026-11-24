@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
 import launcher.CurseForge
+import launcher.CurseForgeModpackInstaller
 import launcher.FavoritesStore
 import launcher.Instance
 import launcher.ModHit
@@ -616,15 +617,18 @@ private fun CurseForgeModpacksPane(state: LauncherState) {
                     val dir = File(launcher.Dirs.root, "curseforge_modpacks").apply { mkdirs() }
                     CurseForge.downloadFile(hit.projectId, dir, hit.latestFile?.get("id")?.asInt)
                 }
-                // CurseForge modpacks are typically .zip files, not .mrpack
-                // We'd need to handle them differently - for now just show info
-                status = "Downloaded: ${pack.name}. Modpack format may vary."
-                state.showToast("Modpack downloaded: ${hit.title}", LauncherState.ToastType.SUCCESS)
+                status = "Installing modpack…"
+                val inst = withContext(Dispatchers.IO) {
+                    CurseForgeModpackInstaller.install(pack, { status = it }, { d, t -> progress = if (t > 0) d.toFloat() / t else null })
+                }
+                state.refreshInstances(inst.id)
+                status = "Modpack \"${inst.name}\" installed. Press PLAY on Home to download Minecraft and start it."
+                state.showToast("Modpack \"${inst.name}\" installed", LauncherState.ToastType.SUCCESS)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                status = "Modpack download failed: ${e.message}"
-                state.showToast("Failed to download modpack: ${e.message}", LauncherState.ToastType.ERROR)
+                status = "Modpack install failed: ${e.message}"
+                state.showToast("Failed to install modpack: ${e.message}", LauncherState.ToastType.ERROR)
             } finally {
                 busy = false
                 progress = null
