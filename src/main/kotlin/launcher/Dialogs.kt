@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -41,7 +42,7 @@ fun RadioRow(label: String, selected: Boolean, enabled: Boolean, onClick: () -> 
 @Composable
 fun NewInstanceDialog(
     versions: List<VersionEntry>,
-    onCreate: (name: String, mc: String, loader: LoaderKind, loaderVersion: String?) -> Unit,
+    onCreate: (name: String, mc: String, loader: LoaderKind, loaderVersion: String?, optifineVersion: String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
@@ -53,12 +54,14 @@ fun NewInstanceDialog(
         if (showAll) versions else versions.filter { it.type == "release" }
     }
 
-    // OptiFine build selection (only used when loader == OPTIFINE)
+    // OptiFine build selection (available for any loader except VANILLA/OPTIFINE standalone)
     var ofMenuOpen by remember { mutableStateOf(false) }
     var ofBuilds by remember { mutableStateOf<List<OptiFineBuild>?>(null) }
     var ofBuild by remember { mutableStateOf<OptiFineBuild?>(null) }
-    LaunchedEffect(loader, mc) {
-        if (loader != LoaderKind.OPTIFINE || mc.isBlank()) {
+    var useOptiFine by remember { mutableStateOf(false) }
+
+    LaunchedEffect(useOptiFine, mc) {
+        if (!useOptiFine || mc.isBlank()) {
             ofBuild = null
             ofBuilds = null
             return@LaunchedEffect
@@ -109,35 +112,48 @@ fun NewInstanceDialog(
                 Text("Mod loader", style = MaterialTheme.typography.labelLarge)
                 LoaderKind.values().toList().chunked(3).forEach { rowKinds ->
                     Row {
-                        rowKinds.forEach { k -> RadioRow(k.label, loader == k, true) { loader = k } }
+                        rowKinds.forEach { k ->
+                            val enabled = k != LoaderKind.OPTIFINE // OptiFine standalone is legacy
+                            RadioRow(k.label, loader == k, enabled) { if (enabled) loader = k }
+                        }
                     }
                 }
-                if (loader == LoaderKind.OPTIFINE) {
-                    val build = ofBuild
-                    Column {
-                        OutlinedButton(
-                            onClick = { ofMenuOpen = true },
-                            enabled = mc.isNotBlank(),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                when {
-                                    ofList == null -> "Loading OptiFine builds…"
-                                    ofList.isEmpty() -> "No OptiFine builds for $mc"
-                                    build != null -> "OptiFine build: ${build.displayName}"
-                                    else -> "OptiFine build…"
-                                }
-                            )
-                        }
-                        DropdownMenu(expanded = ofMenuOpen, onDismissRequest = { ofMenuOpen = false }) {
-                            ofList.orEmpty().filter { !it.isPreview }.forEach { b ->
-                                DropdownMenuItem(
-                                    text = { Text(b.displayName) },
-                                    onClick = {
-                                        ofBuild = b
-                                        ofMenuOpen = false
-                                    },
+                Spacer(Modifier.height(8.dp))
+
+                // OptiFine checkbox (available when loader supports it)
+                val canUseOptiFine = loader == LoaderKind.FORGE || loader == LoaderKind.NEOFORGE || loader == LoaderKind.FABRIC || loader == LoaderKind.QUILT || loader == LoaderKind.VANILLA
+                if (canUseOptiFine) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = useOptiFine, onCheckedChange = { useOptiFine = it })
+                        Text("Add OptiFine")
+                    }
+                    if (useOptiFine) {
+                        val build = ofBuild
+                        Column {
+                            OutlinedButton(
+                                onClick = { ofMenuOpen = true },
+                                enabled = mc.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    when {
+                                        ofList == null -> "Loading OptiFine builds…"
+                                        ofList.isEmpty() -> "No OptiFine builds for $mc"
+                                        build != null -> "OptiFine build: ${build.displayName}"
+                                        else -> "OptiFine build…"
+                                    }
                                 )
+                            }
+                            DropdownMenu(expanded = ofMenuOpen, onDismissRequest = { ofMenuOpen = false }) {
+                                ofList.orEmpty().filter { !it.isPreview }.forEach { b ->
+                                    DropdownMenuItem(
+                                        text = { Text(b.displayName) },
+                                        onClick = {
+                                            ofBuild = b
+                                            ofMenuOpen = false
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -147,8 +163,8 @@ fun NewInstanceDialog(
         confirmButton = {
             val build = ofBuild
             Button(
-                onClick = { onCreate(name, mc, loader, build?.version) },
-                enabled = mc.isNotBlank() && (loader != LoaderKind.OPTIFINE || build != null),
+                onClick = { onCreate(name, mc, loader, null, if (useOptiFine) build?.version else null) },
+                enabled = mc.isNotBlank() && (!useOptiFine || build != null),
             ) { Text("Create") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },

@@ -116,7 +116,7 @@ private fun GlobalDialogs(state: LauncherState) {
     if (state.showNewInstance) {
         NewInstanceDialog(
             versions = state.versions,
-            onCreate = { n, mc, l, lv -> state.createInstance(n, mc, l, lv) },
+            onCreate = { n, mc, l, lv, ov -> state.createInstance(n, mc, l, lv, ov) },
             onDismiss = { state.showNewInstance = false },
         )
     }

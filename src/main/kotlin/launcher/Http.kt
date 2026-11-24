@@ -27,7 +27,7 @@ fun JsonObject.int(k: String): Int? = get(k)?.takeIf { it.isJsonPrimitive }?.asI
 object Http {
     private const val UA = "${AppInfo.NAME}/${AppInfo.VERSION}"
 
-    private val client: HttpClient = HttpClient.newBuilder()
+    val client: HttpClient = HttpClient.newBuilder()
         .followRedirects(HttpClient.Redirect.ALWAYS)
         .connectTimeout(Duration.ofSeconds(20))
         .build()

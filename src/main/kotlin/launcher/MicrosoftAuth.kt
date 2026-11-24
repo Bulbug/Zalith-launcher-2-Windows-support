@@ -34,31 +34,18 @@ object OAuthClient {
     }
 }
 
-/** Saved Microsoft login (refresh token). Stored as plain JSON in the app folder, like most launchers do. */
+/** Saved Microsoft login (refresh token). Stored encrypted with Windows DPAPI. */
 object AccountStore {
-    private val file: File get() = File(Dirs.root, "microsoft_account.json")
+    private val secureStore = SecureAccountStore
 
-    fun load(): StoredAccount? {
-        if (!file.isFile) return null
-        return try {
-            val o = parseJson(file.readText())
-            StoredAccount(o.str("name")!!, o.str("uuid")!!, o.str("refreshToken")!!)
-        } catch (e: Exception) {
-            null
-        }
-    }
+    fun load(): StoredAccount? = secureStore.load()
 
     fun save(a: StoredAccount) {
-        Dirs.root.mkdirs()
-        val o = JsonObject()
-        o.addProperty("name", a.name)
-        o.addProperty("uuid", a.uuid)
-        o.addProperty("refreshToken", a.refreshToken)
-        file.writeText(o.toString())
+        secureStore.save(a)
     }
 
     fun clear() {
-        file.delete()
+        secureStore.clear()
     }
 }
 
