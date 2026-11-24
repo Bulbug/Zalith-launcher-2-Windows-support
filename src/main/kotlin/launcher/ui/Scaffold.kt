@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import launcher.ui.screens.DownloadManagerScreen
 import launcher.ui.screens.DownloadScreen
 import launcher.ui.screens.HomeScreen
 import launcher.ui.screens.InstancesScreen
@@ -50,7 +51,13 @@ fun ZL2Scaffold(
         )
 
         Crossfade(currentScreen) { screen ->
-            screenContent(screen)
+            when (screen) {
+                RailScreen.HOME -> HomeScreen(state, { currentScreen = it }, scope)
+                RailScreen.DOWNLOAD -> DownloadScreen(state)
+                RailScreen.DOWNLOAD_MANAGER -> DownloadManagerScreen(state)
+                RailScreen.INSTANCES -> InstancesScreen(state)
+                RailScreen.SETTINGS -> SettingsScreen(state)
+            }
         }
     }
 
