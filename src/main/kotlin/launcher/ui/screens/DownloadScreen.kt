@@ -16,27 +16,37 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
+import launcher.CurseForge
+import launcher.FavoritesStore
 import launcher.Instance
 import launcher.ModHit
 import launcher.Modrinth
@@ -85,6 +95,14 @@ fun DownloadScreen(
                 modifier = Modifier.fillMaxWidth(0.4f).padding(start = 8.dp),
             )
             Spacer(Modifier.height(12.dp))
+            TabMenuCategory("CurseForge Mods", tab == DownloadTab.CURSEFORGE_MODS) { tab = DownloadTab.CURSEFORGE_MODS }
+            TabMenuCategory("CurseForge Modpacks", tab == DownloadTab.CURSEFORGE_MODPACKS) { tab = DownloadTab.CURSEFORGE_MODPACKS }
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxWidth(0.4f).padding(start = 8.dp),
+            )
+            Spacer(Modifier.height(12.dp))
             TabMenuCategory("Search by ID", tab == DownloadTab.SEARCH_ID) { tab = DownloadTab.SEARCH_ID }
             TabMenuCategory("Favorites", tab == DownloadTab.FAVORITES) { tab = DownloadTab.FAVORITES }
         }
@@ -93,10 +111,17 @@ fun DownloadScreen(
         when (tab) {
             DownloadTab.MODS -> ModsPane(state)
             DownloadTab.MODPACKS -> ModpacksPane(state)
-            DownloadTab.GAME -> Box(Modifier.fillMaxSize()) { Text("Game tab - TODO", style = MaterialTheme.typography.titleMedium) }
+            DownloadTab.GAME -> Box(Modifier.fillMaxSize()) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("Game Versions", style = MaterialTheme.typography.titleLarge)
+                    // Add version list or other content here
+                }
+            }
             DownloadTab.RESOURCE_PACKS -> ResourcePacksPane(state)
             DownloadTab.SAVES -> SavesPane(state)
             DownloadTab.SHADERS -> ShadersPane(state)
+            DownloadTab.CURSEFORGE_MODS -> CurseForgeModsPane(state)
+            DownloadTab.CURSEFORGE_MODPACKS -> CurseForgeModpacksPane(state)
             DownloadTab.SEARCH_ID -> SearchByIdPane(state)
             DownloadTab.FAVORITES -> FavoritesPane(state)
         }
@@ -171,7 +196,7 @@ private fun ModsPane(state: LauncherState) {
         if (inst == null) return
         scope.launch {
             busy = true
-            status = "Installing ${hit.title}…"
+            status = "Installing ${hit.title} for ${inst.loader.label}…"
             try {
                 val added = withContext(Dispatchers.IO) {
                     Modrinth.install(hit.projectId, inst.mc, inst.loader.modrinth, inst.modsDir) { status = it }
@@ -231,6 +256,7 @@ private fun ModsPane(state: LauncherState) {
             if (busy) WorkingIndicator(status, null)
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(results) { hit ->
+                    val isFav = FavoritesStore.isFavorite("modrinth", hit.projectId.toString(), "mod")
                     ModResultCard(
                         title = hit.title,
                         subtitle = "${hit.author} - ${hit.description}",
@@ -238,6 +264,21 @@ private fun ModsPane(state: LauncherState) {
                         actionLabel = "Install",
                         actionEnabled = !busy,
                         onAction = { install(hit) },
+                        showFavorite = true,
+                        isFavorite = isFav,
+                        onFavoriteClick = {
+                            val entry = FavoritesStore.FavoriteEntry(
+                                platform = "modrinth",
+                                projectId = hit.projectId.toString(),
+                                category = "mod",
+                                title = hit.title,
+                                author = hit.author,
+                                description = hit.description,
+                                downloads = hit.downloads,
+                            )
+                            val added = FavoritesStore.toggle(entry)
+                            state.showToast(if (added) "Added to favorites" else "Removed from favorites", LauncherState.ToastType.INFO)
+                        },
                     )
                 }
                 if (installed.isNotEmpty()) {
@@ -259,6 +300,7 @@ private fun ModsPane(state: LauncherState) {
         }
     }
 }
+
 
 // ---------------------------------------------------------------- Modpacks pane
 
@@ -369,6 +411,9 @@ private fun ModResultCard(
     actionLabel: String,
     actionEnabled: Boolean,
     onAction: () -> Unit,
+    showFavorite: Boolean = false,
+    isFavorite: Boolean = false,
+    onFavoriteClick: (() -> Unit)? = null,
 ) {
     Card(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -387,10 +432,244 @@ private fun ModResultCard(
                     Text(trailing, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+            if (showFavorite && onFavoriteClick != null) {
+                IconButton(onClick = onFavoriteClick) {
+                    androidx.compose.material3.Icon(
+                        if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             Button(onClick = onAction, enabled = actionEnabled) { Text(actionLabel) }
         }
     }
 }
+
+// ---------------------------------------------------------------- CurseForge Mods pane
+
+@Composable
+private fun CurseForgeModsPane(state: LauncherState) {
+    val scope = rememberCoroutineScope()
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<CurseForge.CurseHit>>(emptyList()) }
+    var status by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var installed by remember { mutableStateOf(emptyList<File>()) }
+
+    val inst = state.selected
+    remember(inst?.id) {
+        installed = if (inst != null) Modrinth.listInstalled(inst.modsDir) else emptyList()
+        inst
+    }
+
+    fun search() {
+        scope.launch {
+            busy = true
+            status = "Searching CurseForge…"
+            try {
+                val r = withContext(Dispatchers.IO) { CurseForge.searchMods(query.trim(), inst?.mc) }
+                results = r
+                status = if (r.isEmpty()) "No mods found" else "${r.size} mods (data from CurseForge)"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status = "Search failed: ${e.message}"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    fun install(hit: CurseForge.CurseHit) {
+        if (inst == null) return
+        scope.launch {
+            busy = true
+            status = "Installing ${hit.title}…"
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    val dir = File(launcher.Dirs.root, "curseforge_mods").apply { mkdirs() }
+                    CurseForge.downloadFile(hit.projectId, dir, hit.latestFile?.get("id")?.asInt)
+                }
+                // Copy to instance mods dir
+                file.copyTo(File(inst.modsDir, file.name), overwrite = true)
+                installed = Modrinth.listInstalled(inst.modsDir)
+                status = "Installed: ${file.name}"
+                state.showToast("Mod \"${hit.title}\" installed", LauncherState.ToastType.SUCCESS)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status = "Install failed: ${e.message}"
+                state.showToast("Failed to install ${hit.title}: ${e.message}", LauncherState.ToastType.ERROR)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    fun remove(file: File) {
+        if (inst == null) return
+        file.delete()
+        installed = Modrinth.listInstalled(inst.modsDir)
+        status = "Removed ${file.name}"
+        state.showToast("Mod removed", LauncherState.ToastType.INFO)
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.TopStart,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (inst == null) {
+                Text(
+                    "Select an instance in Instances to browse CurseForge mods for it.",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                return@Box
+            }
+            Text("CurseForge Mods for ${inst.name}", style = MaterialTheme.typography.titleLarge)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Search CurseForge mods") },
+                    singleLine = true,
+                    enabled = !busy,
+                    modifier = Modifier.weight(1f),
+                )
+                Button(onClick = { search() }, enabled = !busy) { Text("Search") }
+            }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (busy) WorkingIndicator(status, null)
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(results) { hit ->
+                    CurseResultCard(
+                        title = hit.title,
+                        subtitle = "${hit.author} - ${hit.description}",
+                        trailing = "${formatDownloads(hit.downloads)} downloads",
+                        actionLabel = "Install",
+                        actionEnabled = !busy,
+                        onAction = { install(hit) },
+                    )
+                }
+                if (installed.isNotEmpty()) {
+                    item {
+                        Text("Installed in this instance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
+                    items(installed) { f ->
+                        ModResultCard(
+                            title = f.name,
+                            subtitle = "",
+                            trailing = "",
+                            actionLabel = "Remove",
+                            actionEnabled = !busy,
+                            onAction = { remove(f) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- CurseForge Modpacks pane
+
+@Composable
+private fun CurseForgeModpacksPane(state: LauncherState) {
+    val scope = rememberCoroutineScope()
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<CurseForge.CurseHit>>(emptyList()) }
+    var status by remember { mutableStateOf("") }
+    var progress by remember { mutableStateOf<Float?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    fun search() {
+        scope.launch {
+            busy = true
+            status = "Searching CurseForge…"
+            try {
+                val r = withContext(Dispatchers.IO) { CurseForge.searchModpacks(query.trim()) }
+                results = r
+                status = if (r.isEmpty()) "No modpacks found" else "${r.size} modpacks (data from CurseForge)"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status = "Search failed: ${e.message}"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    fun install(hit: CurseForge.CurseHit) {
+        scope.launch {
+            busy = true
+            progress = null
+            status = "Downloading ${hit.title}…"
+            try {
+                val pack = withContext(Dispatchers.IO) {
+                    val dir = File(launcher.Dirs.root, "curseforge_modpacks").apply { mkdirs() }
+                    CurseForge.downloadFile(hit.projectId, dir, hit.latestFile?.get("id")?.asInt)
+                }
+                // CurseForge modpacks are typically .zip files, not .mrpack
+                // We'd need to handle them differently - for now just show info
+                status = "Downloaded: ${pack.name}. Modpack format may vary."
+                state.showToast("Modpack downloaded: ${hit.title}", LauncherState.ToastType.SUCCESS)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status = "Modpack download failed: ${e.message}"
+                state.showToast("Failed to download modpack: ${e.message}", LauncherState.ToastType.ERROR)
+            } finally {
+                busy = false
+                progress = null
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.TopStart,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("CurseForge Modpacks", style = MaterialTheme.typography.titleLarge)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Search CurseForge modpacks") },
+                    singleLine = true,
+                    enabled = !busy,
+                    modifier = Modifier.weight(1f),
+                )
+                Button(onClick = { search() }, enabled = !busy) { Text("Search") }
+            }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (busy) WorkingIndicator(status, progress)
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(results) { hit ->
+                    CurseResultCard(
+                        title = hit.title,
+                        subtitle = "${hit.author} - ${hit.description}",
+                        trailing = "${formatDownloads(hit.downloads)} downloads",
+                        actionLabel = "Download",
+                        actionEnabled = !busy,
+                        onAction = { install(hit) },
+                    )
+                }
+            }
+        }
+    }
+}
+
 
 private fun formatDownloads(n: Long): String = when {
     n >= 1_000_000 -> "%.1fM".format(n / 1_000_000f)
@@ -441,7 +720,7 @@ private fun ResourcePacksPane(state: LauncherState) {
         if (inst == null) return
         scope.launch {
             busy = true
-            status = "Installing ${hit.title}…"
+            status = "Installing ${hit.title} for ${inst.loader.label}…"
             try {
                 val added = withContext(Dispatchers.IO) {
                     Modrinth.install(hit.projectId, inst.mc, emptyList(), inst.resourcePacksDir) { status = it }
@@ -529,6 +808,7 @@ private fun ResourcePacksPane(state: LauncherState) {
         }
     }
 }
+
 
 // ---------------------------------------------------------------- Saves pane
 
@@ -635,6 +915,7 @@ private fun SavesPane(state: LauncherState) {
     }
 }
 
+
 // ---------------------------------------------------------------- Shaders pane
 
 @Composable
@@ -678,7 +959,7 @@ private fun ShadersPane(state: LauncherState) {
         if (inst == null) return
         scope.launch {
             busy = true
-            status = "Installing ${hit.title}…"
+            status = "Installing ${hit.title} for ${inst.loader.label}…"
             try {
                 val added = withContext(Dispatchers.IO) {
                     Modrinth.install(hit.projectId, inst.mc, emptyList(), inst.shadersDir) { status = it }
@@ -767,6 +1048,7 @@ private fun ShadersPane(state: LauncherState) {
     }
 }
 
+
 // ---------------------------------------------------------------- Search by ID pane
 
 @Composable
@@ -837,12 +1119,13 @@ private fun SearchByIdPane(state: LauncherState) {
     }
 }
 
+
 // ---------------------------------------------------------------- Favorites pane
 
 @Composable
 private fun FavoritesPane(state: LauncherState) {
     val scope = rememberCoroutineScope()
-    var favorites by remember { mutableStateOf<List<ModHit>>(emptyList()) }
+    var favorites by remember { mutableStateOf<List<FavoritesStore.FavoriteEntry>>(emptyList()) }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
 
@@ -851,15 +1134,38 @@ private fun FavoritesPane(state: LauncherState) {
             busy = true
             status = "Loading favorites…"
             try {
-                // For now, just show empty - would need persistent storage
-                favorites = emptyList()
-                status = "No favorites saved yet"
+                val favs = withContext(Dispatchers.IO) { FavoritesStore.load() }
+                favorites = favs
+                status = if (favs.isEmpty()) "No favorites saved yet" else "${favs.size} favorite(s)"
             } catch (e: Exception) {
                 status = "Failed to load: ${e.message}"
             } finally {
                 busy = false
             }
         }
+    }
+
+    fun removeFavorite(entry: FavoritesStore.FavoriteEntry) {
+        scope.launch {
+            busy = true
+            status = "Removing from favorites…"
+            try {
+                withContext(Dispatchers.IO) {
+                    FavoritesStore.remove(entry.platform, entry.projectId, entry.category)
+                }
+                loadFavorites()
+                status = "Removed from favorites"
+            } catch (e: Exception) {
+                status = "Failed to remove: ${e.message}"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    // Load on first show
+    LaunchedEffect(Unit) {
+        loadFavorites()
     }
 
     Box(
@@ -887,18 +1193,80 @@ private fun FavoritesPane(state: LauncherState) {
                 )
             } else {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(favorites) { hit ->
-                        ModResultCard(
-                            title = hit.title,
-                            subtitle = "${hit.author} - ${hit.description}",
-                            trailing = "${formatDownloads(hit.downloads)} downloads",
-                            actionLabel = "View",
-                            actionEnabled = !busy,
-                            onAction = { /* open details */ },
+                    items(favorites) { entry ->
+                        FavoriteResultCard(
+                            entry = entry,
+                            onRemove = { removeFavorite(entry) },
+                            busy = busy,
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Favorite result card
+
+@Composable
+private fun FavoriteResultCard(
+    entry: FavoritesStore.FavoriteEntry,
+    onRemove: () -> Unit,
+    busy: Boolean,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(entry.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "${entry.author} - ${entry.description}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${entry.platform} / ${entry.category} - ${formatDownloads(entry.downloads)} downloads",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onRemove, enabled = !busy) {
+                Icon(Icons.Filled.Delete, contentDescription = "Remove from favorites", tint = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- shared CurseForge card
+
+@Composable
+private fun CurseResultCard(
+    title: String,
+    subtitle: String,
+    trailing: String,
+    actionLabel: String,
+    actionEnabled: Boolean,
+    onAction: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (subtitle.isNotBlank()) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (trailing.isNotBlank()) {
+                    Text(trailing, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Button(onClick = onAction, enabled = actionEnabled) { Text(actionLabel) }
         }
     }
 }
