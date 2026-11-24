@@ -12,6 +12,7 @@ import launcher.DeviceCode
 import launcher.GameInstaller
 import launcher.GameLauncher
 import launcher.Instance
+import launcher.InstanceExport
 import launcher.InstanceStore
 import launcher.JavaRuntime
 import launcher.LoaderKind
@@ -22,7 +23,9 @@ import launcher.Settings
 import launcher.StoredAccount
 import launcher.VersionEntry
 import launcher.ui.ColorTheme
+import launcher.ui.screens.InstanceFilter
 import kotlinx.coroutines.CancellationException
+import launcher.Instance
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,7 +38,7 @@ import java.io.File
 enum class RailScreen { HOME, DOWNLOAD, INSTANCES, SETTINGS }
 
 /** Which category is open inside the Download screen. */
-enum class DownloadTab { MODS, MODPACKS, GAME, RESOURCE_PACKS, SAVES, SHADERS, SEARCH_ID, FAVORITES }
+enum class DownloadTab { MODS, MODPACKS, GAME, RESOURCE_PACKS, SAVES, SHADERS, SEARCH_ID, FAVORITES, CURSEFORGE_MODS, CURSEFORGE_MODPACKS }
 
 /**
  * All launcher state + actions, hoisted out of composables so the screens are thin views.
@@ -62,8 +65,10 @@ class LauncherState(private val scope: CoroutineScope) {
     // ---- data ----
     var versions by mutableStateOf<List<VersionEntry>>(emptyList())
     var instances by mutableStateOf(InstanceStore.list())
+    var filteredInstances by mutableStateOf<List<Instance>>(emptyList())
     var selectedId by mutableStateOf(Settings.load().instance)
     var msAccount by mutableStateOf(AccountStore.load())
+    var currentFilter by mutableStateOf(InstanceFilter.ALL)
 
     val selected: Instance? get() = instances.firstOrNull { it.id == selectedId }
 
@@ -115,12 +120,25 @@ class LauncherState(private val scope: CoroutineScope) {
 
     fun refreshInstances(select: String? = null) {
         instances = InstanceStore.list()
+        filterInstances(currentFilter)
         if (select != null) selectedId = select
         else if (instances.none { it.id == selectedId }) selectedId = instances.firstOrNull()?.id ?: ""
     }
 
     fun selectInstance(id: String) {
         if (!busy) selectedId = id
+    }
+
+    fun filterInstances(filter: InstanceFilter) {
+        currentFilter = filter
+        filteredInstances = instances.filter { inst ->
+            when (filter) {
+                InstanceFilter.ALL -> true
+                InstanceFilter.VANILLA -> inst.loader == LoaderKind.VANILLA && !inst.isModpack
+                InstanceFilter.MODLOADER -> inst.loader != LoaderKind.VANILLA && inst.loader != LoaderKind.OPTIFINE && !inst.isModpack
+                InstanceFilter.MODPACK -> inst.isModpack
+            }
+        }
     }
 
     private inline fun currentSettings(update: (Settings) -> Settings) {
@@ -170,8 +188,8 @@ class LauncherState(private val scope: CoroutineScope) {
 
     // ---- instances ----
 
-    fun createInstance(name: String, mc: String, loader: LoaderKind, loaderVersion: String?) {
-        val inst = InstanceStore.create(name, mc, loader, loaderVersion)
+    fun createInstance(name: String, mc: String, loader: LoaderKind, loaderVersion: String?, optifineVersion: String?) {
+        val inst = InstanceStore.create(name, mc, loader, loaderVersion, optifineVersion)
         refreshInstances(inst.id)
         showNewInstance = false
     }
@@ -196,8 +214,24 @@ class LauncherState(private val scope: CoroutineScope) {
                         progress = { d, t -> progress = if (t > 0) d.toFloat() / t else null },
                     )
                 }
-                refreshInstances(inst.id)
-                onInstalled(inst)
+                // Update the instance to mark it as a modpack
+                val modpackInst = InstanceStore.createModpack(inst.name, inst.mc, inst.loader, inst.loaderVersion)
+                // Copy mods from the installed instance to the modpack instance
+                if (inst.modsDir.exists()) {
+                    copyDir(inst.modsDir, modpackInst.modsDir)
+                }
+                // Copy resource packs
+                if (inst.resourcePacksDir.exists()) {
+                    copyDir(inst.resourcePacksDir, modpackInst.resourcePacksDir)
+                }
+                // Copy shader packs
+                if (inst.shadersDir.exists()) {
+                    copyDir(inst.shadersDir, modpackInst.shadersDir)
+                }
+                // Delete the original non-modpack instance
+                InstanceStore.delete(inst)
+                refreshInstances(modpackInst.id)
+                onInstalled(modpackInst)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -205,6 +239,56 @@ class LauncherState(private val scope: CoroutineScope) {
             } finally {
                 busy = false
                 progress = null
+            }
+        }
+    }
+
+    private fun copyDir(source: File, target: File) {
+        target.mkdirs()
+        source.listFiles()?.forEach { f ->
+            if (f.isDirectory) {
+                copyDir(f, File(target, f.name))
+            } else {
+                f.copyTo(File(target, f.name), overwrite = true)
+            }
+        }
+    }
+
+    fun exportInstance(inst: Instance, file: File) {
+        busy = true
+        status = "Exporting instance…"
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    InstanceExport.export(inst, file) { status = it }
+                }
+                status = "Instance exported to ${file.name}"
+                showToast("Instance exported", LauncherState.ToastType.SUCCESS)
+            } catch (e: Exception) {
+                status = "Export failed: ${e.message}"
+                showToast("Export failed: ${e.message}", LauncherState.ToastType.ERROR)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    fun importInstance(file: File) {
+        busy = true
+        status = "Importing instance…"
+        scope.launch {
+            try {
+                val inst = withContext(Dispatchers.IO) {
+                    InstanceExport.importPack(file) { status = it }
+                }
+                refreshInstances(inst.id)
+                status = "Instance \"${inst.name}\" imported"
+                showToast("Instance imported", LauncherState.ToastType.SUCCESS)
+            } catch (e: Exception) {
+                status = "Import failed: ${e.message}"
+                showToast("Import failed: ${e.message}", LauncherState.ToastType.ERROR)
+            } finally {
+                busy = false
             }
         }
     }
@@ -257,6 +341,7 @@ class LauncherState(private val scope: CoroutineScope) {
                     inst.dir,
                     status = { status = it },
                     progress = { d, t -> progress = if (t > 0) d.toFloat() / t else null },
+                    optifineVersion = inst.optifineVersion,
                 )
                 progress = null
                 status = "Checking Java…"

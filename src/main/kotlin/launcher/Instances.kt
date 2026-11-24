@@ -10,6 +10,8 @@ class Instance(
     val mc: String,
     val loader: LoaderKind,
     val loaderVersion: String?,    // null = newest available
+    val optifineVersion: String? = null,  // OptiFine build version (e.g., "1.20.1-OptiFine_HD_U_I1")
+    val isModpack: Boolean = false,        // Whether this instance was created from a modpack
 ) {
     val dir: File get() = File(Dirs.instances, id)
     val modsDir: File get() = File(dir, "mods")
@@ -17,7 +19,7 @@ class Instance(
     val shadersDir: File get() = File(dir, "shaderpacks")
     val savesDir: File get() = File(dir, "saves")
     val subtitle: String
-        get() = "$mc - ${loader.label}" + (loaderVersion?.let { " $it" } ?: "")
+        get() = "$mc - ${loader.label}" + (loaderVersion?.let { " $it" } ?: "") + (optifineVersion?.let { " + OptiFine" } ?: "")
 }
 
 object InstanceStore {
@@ -41,13 +43,15 @@ object InstanceStore {
                 mc = o.str("mc")!!,
                 loader = LoaderKind.valueOf(o.str("loader") ?: "VANILLA"),
                 loaderVersion = o.str("loaderVersion"),
+                optifineVersion = o.str("optifineVersion"),
+                isModpack = o.get("isModpack")?.asBoolean ?: false,
             )
         } catch (e: Exception) {
             null
         }
     }
 
-    fun create(name: String, mc: String, loader: LoaderKind, loaderVersion: String?): Instance {
+    fun create(name: String, mc: String, loader: LoaderKind, loaderVersion: String?, optifineVersion: String?): Instance {
         val clean = name.trim().take(40).ifBlank { "$mc ${loader.label}" }
         var slug = clean.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').ifEmpty { "instance" }
         // folder names Windows doesn't allow
@@ -58,13 +62,38 @@ object InstanceStore {
             id = "$slug-$n"
             n++
         }
-        val inst = Instance(id, clean, mc, loader, loaderVersion)
+        val inst = Instance(id, clean, mc, loader, loaderVersion, optifineVersion)
         inst.dir.mkdirs()
         val o = JsonObject()
         o.addProperty("name", clean)
         o.addProperty("mc", mc)
         o.addProperty("loader", loader.name)
         if (loaderVersion != null) o.addProperty("loaderVersion", loaderVersion)
+        if (optifineVersion != null) o.addProperty("optifineVersion", optifineVersion)
+        o.addProperty("isModpack", false)
+        File(inst.dir, FILE).writeText(o.toString())
+        return inst
+    }
+
+    fun createModpack(name: String, mc: String, loader: LoaderKind, loaderVersion: String?): Instance {
+        val clean = name.trim().take(40).ifBlank { "$mc ${loader.label}" }
+        var slug = clean.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').ifEmpty { "modpack" }
+        // folder names Windows doesn't allow
+        if (Regex("(con|prn|aux|nul|com\\d|lpt\\d)").matches(slug)) slug += "-1"
+        var id = slug
+        var n = 2
+        while (File(Dirs.instances, id).exists()) {
+            id = "$slug-$n"
+            n++
+        }
+        val inst = Instance(id, clean, mc, loader, loaderVersion, null, isModpack = true)
+        inst.dir.mkdirs()
+        val o = JsonObject()
+        o.addProperty("name", clean)
+        o.addProperty("mc", mc)
+        o.addProperty("loader", loader.name)
+        if (loaderVersion != null) o.addProperty("loaderVersion", loaderVersion)
+        o.addProperty("isModpack", true)
         File(inst.dir, FILE).writeText(o.toString())
         return inst
     }

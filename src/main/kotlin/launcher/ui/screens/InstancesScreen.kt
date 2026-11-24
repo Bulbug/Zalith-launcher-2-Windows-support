@@ -38,6 +38,9 @@ import launcher.ui.LauncherState
 import launcher.ui.components.BackgroundCard
 import launcher.ui.components.CardTitleLayout
 import kotlinx.coroutines.CoroutineScope
+import java.io.File
+
+enum class InstanceFilter { ALL, VANILLA, MODLOADER, MODPACK }
 
 /**
  * ZL2-style Instances/Versions screen (two-pane):
@@ -90,16 +93,18 @@ fun InstancesScreen(
             }
 
             // Filter chips row
+            var filter by remember { mutableStateOf(InstanceFilter.ALL) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChipItem("All", true) { /* TODO: filter all */ }
-                FilterChipItem("Vanilla", false) { /* TODO: filter vanilla */ }
-                FilterChipItem("Modloader", false) { /* TODO: filter modloader */ }
-                FilterChipItem("Modpack", false) { /* TODO: filter modpack */ }
+                FilterChipItem("All", filter == InstanceFilter.ALL) { filter = InstanceFilter.ALL; state.filterInstances(InstanceFilter.ALL) }
+                FilterChipItem("Vanilla", filter == InstanceFilter.VANILLA) { filter = InstanceFilter.VANILLA; state.filterInstances(InstanceFilter.VANILLA) }
+                FilterChipItem("Modloader", filter == InstanceFilter.MODLOADER) { filter = InstanceFilter.MODLOADER; state.filterInstances(InstanceFilter.MODLOADER) }
+                FilterChipItem("Modpack", filter == InstanceFilter.MODPACK) { filter = InstanceFilter.MODPACK; state.filterInstances(InstanceFilter.MODPACK) }
             }
 
-            // Instance list
+            // Instance list - use filtered instances from state
+            val filteredInstances = state.filteredInstances
             LazyColumn(state = scrollState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.instances, key = { it.id }) { inst ->
+                items(filteredInstances, key = { it.id }) { inst ->
                     InstanceRowCard(state, inst)
                 }
                 if (state.instances.isEmpty()) {
@@ -148,8 +153,16 @@ fun StickyHeaderWithShadow(
             ) {
                 Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Button(onClick = { /* TODO: refresh versions */ }) { Text("Refresh") }
-                Button(onClick = { /* TODO: show new instance dialog */ }) { Text("Install new") }
+                Button(onClick = { state.refreshInstances() }) { Text("Refresh") }
+                Button(onClick = { state.showNewInstanceDialog() }) { Text("Install new") }
+                OutlinedButton(
+                    onClick = {
+                        val dlg = java.awt.FileDialog(null as java.awt.Frame?, "Import Instance", java.awt.FileDialog.LOAD)
+                        dlg.setFilenameFilter { _, name -> name.endsWith(".dlpack", ignoreCase = true) }
+                        dlg.isVisible = true
+                        dlg.file?.let { f -> state.importInstance(File(dlg.directory, f)) }
+                    }
+                ) { Text("Import") }
             }
             content()
         }
@@ -189,6 +202,10 @@ fun InstanceRowCard(state: LauncherState, inst: Instance) {
             TextButton(onClick = { LauncherState.openFolder(inst.dir) }) { Text("Folder") }
             TextButton(onClick = { LauncherState.openFolder(inst.modsDir) }) { Text("Mods") }
             TextButton(
+                onClick = { state.exportInstance(inst, File(Dirs.root, "exports/${inst.name}.dlpack")) },
+                enabled = !state.busy,
+            ) { Text("Export") }
+            TextButton(
                 onClick = { state.deleteTarget = inst },
                 enabled = !state.busy,
             ) { Text("Delete") }
@@ -196,10 +213,6 @@ fun InstanceRowCard(state: LauncherState, inst: Instance) {
                 onClick = { /* settings */ },
                 enabled = !state.busy,
             ) { Text("Settings") }
-            TextButton(
-                onClick = { /* export */ },
-                enabled = !state.busy,
-            ) { Text("Export") }
         }
     }
 }

@@ -38,7 +38,7 @@ object ModpackInstaller {
             }
 
             val name = index.str("name") ?: mrpack.nameWithoutExtension
-            val inst = InstanceStore.create(name, mc, loader, loaderVersion)
+            val inst = InstanceStore.createModpack(name, mc, loader, loaderVersion)
             try {
                 status("Reading ${inst.name}…")
                 val jobs = mutableListOf<Job>()
