@@ -1,13 +1,14 @@
-# Zalith 2 Windows Support (beta)
+# Desk Launcher (beta)
 
-Windows desktop port of the idea behind Zalith Launcher 2. A working launcher:
+Windows desktop Minecraft launcher inspired by Zalith Launcher 2. A working launcher:
 pick a version, it downloads everything (game, libraries, assets, Java if needed)
 and starts Minecraft. Supports OptiFine, Fabric, Quilt, Forge (1.13+), NeoForge,
 Modrinth mods and modpacks.
 
 **Unofficial Modified Version.** Based on ideas and (from phase 2) code of
-Zalith Launcher 2 (GPL-3.0 with additional terms). Keep their copyright notices
-and keep this project GPL-3.0.
+Zalith Launcher 2 (GPL-3.0 with additional terms). This project preserves
+all copyright notices and is licensed under GPL-3.0.
+Original project: https://github.com/ZalithLauncher/ZalithLauncher2
 The app name is the `NAME` constant in `src/main/kotlin/launcher/Config.kt`.
 
 ## Run it
@@ -33,6 +34,15 @@ gradlew createDistributable
 `%APPDATA%\.desklauncher\` holds versions, libraries, assets, downloaded Java
 runtimes, and the `game` folder (saves, mods, resource packs).
 
+## License compliance
+
+This project is a modified version of Zalith Launcher 2 (GPL-3.0 with additional terms).
+Per the upstream license terms:
+- The application uses a distinct name ("Desk Launcher") that doesn't contain "ZalithLauncher" or "ZL"
+- "Unofficial Modified Version" is displayed on the main screen
+- All upstream copyright notices are preserved
+- This project remains GPL-3.0 licensed
+
 ## Microsoft login (needs a one-time setup)
 
 The Azure app ID is not in this repo, so you need your own:
@@ -44,13 +54,13 @@ The Azure app ID is not in this repo, so you need your own:
 3. Copy the **Application (client) ID** and save it in
    `%APPDATA%\.desklauncher\oauth_client_id.txt` (or set the `DESK_OAUTH_CLIENT_ID`
    environment variable).
-4. **Mojang has to approve the app ID** before it can sign players in. Apply at
+4. **Mojang Approval Required**: After registering your Azure app, submit it for approval at
    https://aka.ms/mce-reviewappid. Until it is approved, sign-in fails at the Minecraft
    step with "Invalid app registration" (HTTP 403). Approval can take days to weeks.
 
 Until then, use the **Offline** account.
 
-The login (a refresh token) is saved as plain JSON in `%APPDATA%\.desklauncher\microsoft_account.json`.
+The login (a refresh token) is stored securely using Windows DPAPI in `%APPDATA%\.desklauncher\microsoft_account_secure.dat`.
 
 ## Instances and modpacks
 
@@ -72,13 +82,31 @@ Works (written, not yet tested by a real build - report problems!):
 - Offline accounts, and Microsoft login once your app ID is approved.
 - **Fabric and Quilt**, and **Forge and NeoForge** for Minecraft 1.13+ (experimental; they use
   the official installers). Modpacks can pin an exact loader version.
-- **OptiFine** (standalone, no Forge combos): pick a build in the New dialog; the installer
-  is downloaded from optifine.net and patched onto the vanilla jar.
+- **OptiFine** (standalone, or with Forge/NeoForge/Fabric/Quilt): pick a build in the New dialog; the installer
+  is downloaded from optifine.net and patched onto the vanilla jar. Can be combined with any loader.
 - **Mod browser** (Modrinth): search, install with required dependencies, remove.
 - **Instances** and **Modrinth modpacks** (.mrpack).
 
-Not yet: OptiFine with Forge, CurseForge, CurseForge-format modpacks, Forge for Minecraft 1.12
+Not yet: CurseForge-format modpacks (full support), Forge for Minecraft 1.12
 and older, Zalith's UI screens.
+
+## Recent Improvements
+
+- **OptiFine integration**: Can now be combined with any loader (Forge, NeoForge, Fabric, Quilt, Vanilla)
+- **CurseForge integration**: Search and install mods/modpacks from CurseForge
+- **Instance filtering**: Filter instances by type (Vanilla, Modloader, Modpack)
+- **Instance export/import**: Export instances as .dlpack files (includes mods, resource packs, shaders) and import them
+- **Loader-aware mod installation**: Mods are now installed with the instance's loader context
+- **Enhanced modpack support**: Modrinth modpacks now properly create instances with correct loaders
+
+- **CurseForge integration**: Search and install mods/modpacks from CurseForge
+- **Instance filtering**: Filter instances by type (Vanilla, Modloader, Modpack)
+- **Loader-aware mod installation**: Mods are now installed with the instance's loader context
+- **Enhanced modpack support**: Modrinth modpacks now properly create instances with correct loaders
+
+- **Instance filtering**: Filter instances by type (Vanilla, Modloader, Modpack)
+- **Loader-aware mod installation**: Mods are now installed with the instance's loader context
+- **Enhanced modpack support**: Modrinth modpacks now properly create instances with correct loaders
 
 Upgrading from 0.3: the old `instances\<version>-<loader>` folders (without an `instance.json`)
 are left alone and don't show up in the list. Copy their saves into a new instance if you

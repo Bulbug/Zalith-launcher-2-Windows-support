@@ -64,6 +64,7 @@ import launcher.ui.ActionCard
 import launcher.ui.LauncherState
 import launcher.ui.RailScreen
 import launcher.ui.components.BackgroundCard
+import launcher.AppInfo
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -85,6 +86,7 @@ import launcher.ui.ActionCard
 import launcher.ui.LauncherState
 import launcher.ui.RailScreen
 import launcher.ui.components.BackgroundCard
+import launcher.AppInfo
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -102,6 +104,13 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // ---- App notice ----
+        Text(
+            AppInfo.NOTICE,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 16.dp, top = 4.dp)
+        )
         // ---- Hero card for selected instance ----
         if (inst != null) {
             VersionCard(state, inst, scope, Modifier.fillMaxWidth())

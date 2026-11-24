@@ -4,12 +4,15 @@ import java.io.File
 import java.util.Properties
 
 object AppInfo {
-    // Change the name here. Per the Zalith Launcher 2 license terms, a modified version
-    // must not contain "ZalithLauncher" or "ZL" in its name and must say it is an
-    // "Unofficial Modified Version" on the main screen.
-    const val NAME = "Zalith 2 Windows Support"
+    // Per the Zalith Launcher 2 (GPL-3.0 with additional terms):
+    // A modified version must NOT contain "ZalithLauncher" or "ZL" in its name
+    // and MUST display "Unofficial Modified Version" on the main screen.
+    // Original project: https://github.com/ZalithLauncher/ZalithLauncher2
+    const val NAME = "Desk Launcher"
     const val VERSION = "0.5.0-beta"
     const val NOTICE = "Unofficial Modified Version"
+    const val ORIGINAL_PROJECT = "Zalith Launcher 2"
+    const val ORIGINAL_URL = "https://github.com/ZalithLauncher/ZalithLauncher2"
 }
 
 object Dirs {

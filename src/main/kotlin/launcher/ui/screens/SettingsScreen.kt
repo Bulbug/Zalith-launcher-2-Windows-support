@@ -231,7 +231,12 @@ private fun AboutSection() {
                 color = MaterialTheme.colorScheme.primary,
             )
             Text(
-                "A Windows launcher inspired by Zalith Launcher 2 (GPL-3.0). Game saves, mods and assets live in %APPDATA%\\.desklauncher.",
+                "Based on ${launcher.AppInfo.ORIGINAL_PROJECT} (GPL-3.0): ${launcher.AppInfo.ORIGINAL_URL}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "Game saves, mods and assets live in %APPDATA%\\.desklauncher.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
