@@ -201,6 +201,41 @@ class LauncherState(private val scope: CoroutineScope) {
         refreshInstances()
     }
 
+    fun renameInstance(inst: Instance, newName: String) {
+        val updated = InstanceStore.rename(inst, newName)
+        refreshInstances(updated.id)
+    }
+
+    fun duplicateInstance(inst: Instance, newName: String) {
+        val newInst = InstanceStore.duplicate(inst, newName)
+        refreshInstances(newInst.id)
+    }
+
+    fun changeInstanceVersion(inst: Instance, mc: String, loader: LoaderKind, loaderVersion: String?, optifineVersion: String?) {
+        val updated = InstanceStore.changeVersion(inst, mc, loader, loaderVersion, optifineVersion)
+        refreshInstances(updated.id)
+    }
+
+    fun backupInstance(inst: Instance) {
+        busy = true
+        status = "Backing up instance…"
+        scope.launch {
+            try {
+                val backupDir = File(Dirs.root, "backups").apply { mkdirs() }
+                withContext(Dispatchers.IO) {
+                    InstanceStore.backup(inst, backupDir)
+                }
+                status = "Instance backed up to ${backupDir.name}"
+                showToast("Backup created", LauncherState.ToastType.SUCCESS)
+            } catch (e: Exception) {
+                status = "Backup failed: ${e.message}"
+                showToast("Backup failed: ${e.message}", LauncherState.ToastType.ERROR)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
     fun importModpack(file: File?, onInstalled: (Instance) -> Unit) {
         if (file == null) return
         busy = true
@@ -320,12 +355,15 @@ class LauncherState(private val scope: CoroutineScope) {
             status = "Username must be 3-16 letters, numbers or _"
             return
         }
-        val ramMb = Settings.load().ramMb
+        val ramMb = inst.effectiveRam(Settings.load().ramMb)
+        val javaMajor = inst.effectiveJavaMajor(0)
+        val jvmArgs = inst.effectiveJvmArgs()
         Settings(name, ramMb, Settings.load().account, inst.id,
             dark, colorTheme.name).save()
 
         busy = true
         log.clear()
+        val startTime = System.currentTimeMillis()
         scope.launch {
             try {
                 val account = if (microsoft) {
@@ -347,10 +385,10 @@ class LauncherState(private val scope: CoroutineScope) {
                 progress = null
                 status = "Checking Java…"
                 val java = withContext(Dispatchers.IO) {
-                    JavaRuntime.ensure(installed.javaMajor) { status = it }
+                    JavaRuntime.ensure(inst.effectiveJavaMajor(installed.javaMajor)) { status = it }
                 }
                 status = "Launching…"
-                val cmd = GameLauncher.buildCommand(installed, java, account, ramMb)
+                val cmd = GameLauncher.buildCommand(installed, java, account, ramMb, jvmArgs)
                 val proc = withContext(Dispatchers.IO) {
                     GameLauncher.start(cmd, installed.gameDir) { line ->
                         scope.launch(Dispatchers.Main) { addLog(line) }
@@ -358,6 +396,8 @@ class LauncherState(private val scope: CoroutineScope) {
                 }
                 status = "Minecraft is running"
                 val code = withContext(Dispatchers.IO) { proc.waitFor() }
+                val sessionTime = System.currentTimeMillis() - startTime
+                InstanceStore.updatePlayStats(inst, sessionTime)
                 status = "Game closed (exit code $code)"
                 // Create crash report if game crashed
                 if (code != 0) {

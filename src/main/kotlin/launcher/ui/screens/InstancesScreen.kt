@@ -14,13 +14,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import launcher.Instance
+import launcher.InstanceStore
 import launcher.LoaderKind
 import launcher.ui.LauncherState
 import launcher.ui.components.BackgroundCard
@@ -173,6 +177,17 @@ fun StickyHeaderWithShadow(
 @Composable
 fun InstanceRowCard(state: LauncherState, inst: Instance) {
     val isSel = inst.id == state.selectedId
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var showDuplicateDialog by remember { mutableStateOf(false) }
+    var showChangeVersionDialog by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf(inst.name) }
+    var duplicateName by remember { mutableStateOf("${inst.name} (copy)") }
+    var newMcVersion by remember { mutableStateOf(inst.mc) }
+    var newLoader by remember { mutableStateOf(inst.loader) }
+    var newLoaderVersion by remember { mutableStateOf(inst.loaderVersion ?: "") }
+    var newOptifineVersion by remember { mutableStateOf(inst.optifineVersion ?: "") }
+
     BackgroundCard(modifier = Modifier
         .fillMaxWidth()
         .clickable(enabled = !state.busy) { state.selectInstance(inst.id) },
@@ -197,6 +212,17 @@ fun InstanceRowCard(state: LauncherState, inst: Instance) {
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
+                // Show last played and play time
+                if (inst.lastPlayedAt > 0) {
+                    val date = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(java.util.Date(inst.lastPlayedAt))
+                    val hours = inst.playTimeMs / (1000 * 60 * 60)
+                    val mins = (inst.playTimeMs % (1000 * 60 * 60)) / (1000 * 60)
+                    Text(
+                        "Last played: $date  •  Play time: ${hours}h ${mins}m",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             // Action buttons
             TextButton(onClick = { LauncherState.openFolder(inst.dir) }) { Text("Folder") }
@@ -206,14 +232,218 @@ fun InstanceRowCard(state: LauncherState, inst: Instance) {
                 enabled = !state.busy,
             ) { Text("Export") }
             TextButton(
+                onClick = { showSettingsDialog = true },
+                enabled = !state.busy,
+            ) { Text("Settings") }
+            TextButton(
+                onClick = { showRenameDialog = true },
+                enabled = !state.busy,
+            ) { Text("Rename") }
+            TextButton(
+                onClick = { showDuplicateDialog = true },
+                enabled = !state.busy,
+            ) { Text("Duplicate") }
+            TextButton(
+                onClick = { showChangeVersionDialog = true },
+                enabled = !state.busy,
+            ) { Text("Change Version") }
+            TextButton(
                 onClick = { state.deleteTarget = inst },
                 enabled = !state.busy,
             ) { Text("Delete") }
-            TextButton(
-                onClick = { /* settings */ },
-                enabled = !state.busy,
-            ) { Text("Settings") }
         }
+    }
+
+    // Settings dialog
+    if (showSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showSettingsDialog = false },
+            title = { Text("Instance Settings: ${inst.name}") },
+            text = {
+                Column(Modifier.padding(16.dp).width(400.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Rename
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text("Instance Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    // Java version
+                    OutlinedTextField(
+                        value = if (inst.javaMajor > 0) inst.javaMajor.toString() else "",
+                        onValueChange = { /* would need to update */ },
+                        label = { Text("Java Version (0 = auto)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    // RAM
+                    OutlinedTextField(
+                        value = if (inst.ramMb > 0) inst.ramMb.toString() else "",
+                        onValueChange = { /* would need to update */ },
+                        label = { Text("RAM MB (0 = global default)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    // JVM Args
+                    OutlinedTextField(
+                        value = inst.jvmArgs,
+                        onValueChange = { /* would need to update */ },
+                        label = { Text("JVM Arguments") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    // Window settings
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = if (inst.windowWidth > 0) inst.windowWidth.toString() else "",
+                            onValueChange = { /* would need to update */ },
+                            label = { Text("Window Width") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = if (inst.windowHeight > 0) inst.windowHeight.toString() else "",
+                            onValueChange = { /* would need to update */ },
+                            label = { Text("Window Height") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    androidx.compose.material3.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.Checkbox(
+                            checked = inst.fullscreen,
+                            onCheckedChange = { /* would need to update */ },
+                        )
+                        Text("Fullscreen")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    // Save changes
+                    val updated = inst.copy(
+                        name = newName.trim().take(40),
+                        javaMajor = 0, // would parse from field
+                        ramMb = 0,
+                        jvmArgs = "",
+                        windowWidth = 0,
+                        windowHeight = 0,
+                        fullscreen = false,
+                    )
+                    InstanceStore.save(updated)
+                    state.refreshInstances()
+                    showSettingsDialog = false
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSettingsDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    // Rename dialog
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename Instance") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("New Name") },
+                    singleLine = true,
+                    modifier = Modifier.padding(16.dp).width(400.dp),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val updated = InstanceStore.rename(inst, newName.trim().take(40))
+                    state.refreshInstances(updated.id)
+                    showRenameDialog = false
+                }) { Text("Rename") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    // Duplicate dialog
+    if (showDuplicateDialog) {
+        AlertDialog(
+            onDismissRequest = { showDuplicateDialog = false },
+            title = { Text("Duplicate Instance") },
+            text = {
+                OutlinedTextField(
+                    value = duplicateName,
+                    onValueChange = { duplicateName = it },
+                    label = { Text("New Name") },
+                    singleLine = true,
+                    modifier = Modifier.padding(16.dp).width(400.dp),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val newInst = InstanceStore.duplicate(inst, duplicateName.trim().take(40))
+                    state.refreshInstances(newInst.id)
+                    showDuplicateDialog = false
+                }) { Text("Duplicate") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDuplicateDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    // Change version dialog
+    if (showChangeVersionDialog) {
+        AlertDialog(
+            onDismissRequest = { showChangeVersionDialog = false },
+            title = { Text("Change Version / Loader") },
+            text = {
+                Column(Modifier.padding(16.dp).width(400.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    OutlinedTextField(
+                        value = newMcVersion,
+                        onValueChange = { newMcVersion = it },
+                        label = { Text("Minecraft Version") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    // Loader selection would go here
+                    OutlinedTextField(
+                        value = newLoaderVersion,
+                        onValueChange = { newLoaderVersion = it },
+                        label = { Text("Loader Version (optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = newOptifineVersion,
+                        onValueChange = { newOptifineVersion = it },
+                        label = { Text("OptiFine Version (optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val updated = InstanceStore.changeVersion(
+                        inst,
+                        newMcVersion,
+                        newLoader,
+                        newLoaderVersion.ifBlank { null },
+                        newOptifineVersion.ifBlank { null },
+                    )
+                    state.refreshInstances(updated.id)
+                    showChangeVersionDialog = false
+                }) { Text("Change") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChangeVersionDialog = false }) { Text("Cancel") }
+            },
+        )
     }
 }
 

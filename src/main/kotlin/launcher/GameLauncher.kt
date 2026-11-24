@@ -5,7 +5,7 @@ import java.io.File
 
 object GameLauncher {
 
-    fun buildCommand(inst: Installed, javaExe: File, account: Account, ramMb: Int): List<String> {
+    fun buildCommand(inst: Installed, javaExe: File, account: Account, ramMb: Int, extraJvmArgs: String = ""): List<String> {
         val json = inst.json
         val cp = (inst.libs.map { it.second } + inst.clientJar).joinToString(File.pathSeparator) { it.absolutePath }
 
@@ -47,6 +47,10 @@ object GameLauncher {
             "-Xmx${ramMb}M",
             "-Xms${minOf(ramMb, 512)}M",
         )
+        // Add extra JVM args from instance settings
+        if (extraJvmArgs.isNotBlank()) {
+            cmd += extraJvmArgs.split(" ").filter { it.isNotBlank() }
+        }
         val jvm = jvmRaw.map { sub(it, vars) }
         cmd += jvm
         if ("-cp" !in jvm && "-classpath" !in jvm) {
