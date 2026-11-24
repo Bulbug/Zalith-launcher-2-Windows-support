@@ -44,9 +44,10 @@ jobs:
 
       # .exe / .msi installers. WiX is preinstalled on GitHub's Windows runners,
       # but if this step fails it won't fail the whole build.
-      - name: Build installers (optional)
-        continue-on-error: true
+      - name: Build installers (.exe/.msi)
         run: .\gradlew.bat --no-daemon packageExe packageMsi
+        env:
+          CI: true
 
       - name: Zip portable app
         run: Compress-Archive -Path build/compose/binaries/main/app/Zalith2WindowsSupport -DestinationPath Zalith2WindowsSupport-windows-portable.zip
