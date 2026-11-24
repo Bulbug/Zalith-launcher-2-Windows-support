@@ -26,6 +26,7 @@ import launcher.ui.screens.DownloadManagerScreen
 import launcher.ui.screens.DownloadScreen
 import launcher.ui.screens.HomeScreen
 import launcher.ui.screens.InstancesScreen
+import launcher.ui.screens.ModManagementScreen
 import launcher.ui.screens.SettingsScreen
 
 @Composable
@@ -57,6 +58,7 @@ fun ZL2Scaffold(
                 RailScreen.DOWNLOAD -> DownloadScreen(state)
                 RailScreen.DOWNLOAD_MANAGER -> DownloadManagerScreen(state)
                 RailScreen.CRASH_DIAGNOSTICS -> CrashDiagnosticsScreen(state)
+                RailScreen.MOD_MANAGEMENT -> ModManagementScreen(state)
                 RailScreen.INSTANCES -> InstancesScreen(state)
                 RailScreen.SETTINGS -> SettingsScreen(state)
             }

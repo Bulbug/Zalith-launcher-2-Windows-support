@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.foundation.layout.Arrangement as FArrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -136,6 +137,7 @@ fun TopBar(
             TopBarRailItem(Icons.Filled.Download, "Download", currentScreen == RailScreen.DOWNLOAD) { onNavigate(RailScreen.DOWNLOAD) }
             TopBarRailItem(Icons.Filled.DownloadForOffline, "Download Manager", currentScreen == RailScreen.DOWNLOAD_MANAGER) { onNavigate(RailScreen.DOWNLOAD_MANAGER) }
             TopBarRailItem(androidx.compose.material.icons.filled.BugReport, "Crash Diagnostics", currentScreen == RailScreen.CRASH_DIAGNOSTICS) { onNavigate(RailScreen.CRASH_DIAGNOSTICS) }
+            TopBarRailItem(androidx.compose.material.icons.filled.Extension, "Mod Management", currentScreen == RailScreen.MOD_MANAGEMENT) { onNavigate(RailScreen.MOD_MANAGEMENT) }
             TopBarRailItem(Icons.Filled.Settings, "Settings", currentScreen == RailScreen.SETTINGS) { onNavigate(RailScreen.SETTINGS) }
         }
     }
