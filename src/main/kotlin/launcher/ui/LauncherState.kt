@@ -36,7 +36,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** Navigation targets for the top bar rail. */
-enum class RailScreen { HOME, DOWNLOAD, DOWNLOAD_MANAGER, CRASH_DIAGNOSTICS, MOD_MANAGEMENT, INSTANCES, SETTINGS }
+enum class RailScreen { HOME, DOWNLOAD, DOWNLOAD_MANAGER, CRASH_DIAGNOSTICS, MOD_MANAGEMENT, SERVER_MANAGER, WORLD_MANAGER, INSTANCES, SETTINGS }
 
 /** Which category is open inside the Download screen. */
 enum class DownloadTab { MODS, MODPACKS, GAME, RESOURCE_PACKS, SAVES, SHADERS, SEARCH_ID, FAVORITES, CURSEFORGE_MODS, CURSEFORGE_MODPACKS }
