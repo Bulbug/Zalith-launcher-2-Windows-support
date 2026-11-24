@@ -11,6 +11,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.util.HashSet
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.ZipFile
 
@@ -29,7 +30,7 @@ data class Installed(
     val gameDir: File = Dirs.game,        // where saves / mods / config live
 )
 
-private class Dl(val url: String, val dest: File, val sha1: String?)
+private class Dl(val url: String, val dest: File, val sha1: String?, val sha256: String? = null, val expectedSize: Long? = null)
 
 private class LibPlan {
     val tasks = mutableListOf<Dl>()
@@ -46,10 +47,11 @@ object GameInstaller {
         gameDir: File,
         status: (String) -> Unit,
         progress: (done: Int, total: Int) -> Unit,
+        optifineVersion: String? = null,
     ): Installed {
         val base = installVanilla(entry, gameDir, status, progress)
         val result = if (loader == LoaderKind.VANILLA) base
-        else addLoader(base, entry, loader, loaderVersion, status, progress)
+        else addLoader(base, entry, loader, loaderVersion, status, progress, optifineVersion)
         return result.copy(gameDir = gameDir)
     }
 
@@ -73,7 +75,7 @@ object GameInstaller {
         val client = json.obj("downloads")?.obj("client") ?: error("This version has no client download")
         val clientJar = File(vdir, "$id.jar")
         status("Downloading Minecraft $id…")
-        Http.download(client.str("url")!!, clientJar, client.str("sha1"))
+        Http.download(client.str("url")!!, clientJar, client.str("sha1"), client.str("sha256"))
 
         // ---- libraries ----
         val plan = collectLibs(json)
@@ -88,13 +90,14 @@ object GameInstaller {
         val aid = ai.str("id")!!
         val indexFile = File(Dirs.assets, "indexes/$aid.json")
         status("Downloading asset index…")
-        Http.download(ai.str("url")!!, indexFile, ai.str("sha1"))
+        Http.download(ai.str("url")!!, indexFile, ai.str("sha1"), ai.str("sha256"))
         val index = parseJson(indexFile.readText())
         val objects = index.obj("objects") ?: JsonObject()
 
         val assetTasks = objects.entrySet().map { (_, v) ->
             val h = v.asJsonObject.str("hash")!!
             val p = h.substring(0, 2)
+            // Minecraft assets use SHA-1 hash, but we can also check size if available
             Dl("https://resources.download.minecraft.net/$p/$h", File(Dirs.assets, "objects/$p/$h"), h)
         }
         downloadAll(assetTasks, "Downloading assets", status, progress)
@@ -124,7 +127,7 @@ object GameInstaller {
         val lf = logging?.obj("file")
         if (logging != null && lf != null) {
             logFile = File(Dirs.assets, "log_configs/${lf.str("id")}")
-            Http.download(lf.str("url")!!, logFile, lf.str("sha1"))
+            Http.download(lf.str("url")!!, logFile, lf.str("sha1"), lf.str("sha256"))
             logArg = logging.str("argument")
         }
 
@@ -151,14 +154,19 @@ object GameInstaller {
         loaderVersion: String?,
         status: (String) -> Unit,
         progress: (Int, Int) -> Unit,
+        optifineVersion: String? = null,
     ): Installed = withContext(Dispatchers.IO) {
-        val text: String
+        // Handle OptiFine as an additional loader on top of the main loader
+        var result: Installed
+        var text: String
         if (loader == LoaderKind.OPTIFINE) {
+            // Legacy standalone OptiFine
             status("Setting up OptiFine…")
             text = OptiFineInstaller.install(entry.id, loaderVersion ?: "", status).toString()
             val id = parseJson(text).str("id") ?: error("The OptiFine profile is missing an id")
             File(Dirs.versions, id).mkdirs()
             File(Dirs.versions, "$id/$id.json").writeText(text)
+            result = mergeLoader(base, parseJson(text), loader, status, progress)
         } else if (loader.usesInstaller) {
             // Forge / NeoForge: run the official installer headless into our folders
             status("Checking Java for the ${loader.label} installer…")
@@ -169,6 +177,7 @@ object GameInstaller {
                 throw IllegalStateException("${loader.label} couldn't be installed for Minecraft ${entry.id}: ${e.message}")
             }
             text = File(Dirs.versions, "$installedId/$installedId.json").readText()
+            result = mergeLoader(base, parseJson(text), loader, status, progress)
         } else {
             // Fabric / Quilt: their meta server hands us a ready-made version profile
             status("Setting up ${loader.label}…")
@@ -180,8 +189,19 @@ object GameInstaller {
             val id = parseJson(text).str("id") ?: error("The ${loader.label} profile is missing an id")
             File(Dirs.versions, id).mkdirs()
             File(Dirs.versions, "$id/$id.json").writeText(text)
+            result = mergeLoader(base, parseJson(text), loader, status, progress)
         }
-        mergeLoader(base, parseJson(text), loader, status, progress)
+
+        // Add OptiFine on top if requested
+        if (optifineVersion != null && optifineVersion.isNotBlank()) {
+            status("Setting up OptiFine…")
+            val ofText = OptiFineInstaller.install(entry.id, optifineVersion, status).toString()
+            val ofId = parseJson(ofText).str("id") ?: error("The OptiFine profile is missing an id")
+            File(Dirs.versions, ofId).mkdirs()
+            File(Dirs.versions, "$ofId/$ofId.json").writeText(ofText)
+            result = mergeLoader(result, parseJson(ofText), LoaderKind.OPTIFINE, status, progress)
+        }
+        result
     }
 
     private suspend fun mergeLoader(
@@ -236,7 +256,7 @@ object GameInstaller {
             if (artifact != null) {
                 val f = File(Dirs.libraries, artifact.str("path")!!)
                 val url = artifact.str("url")
-                if (!url.isNullOrBlank()) plan.tasks += Dl(url, f, artifact.str("sha1"))
+                if (!url.isNullOrBlank()) plan.tasks += Dl(url, f, artifact.str("sha1"), artifact.str("sha256"))
                 plan.libs += key to f
             } else if (downloads == null) {
                 // loader-style entry: build the Maven path ourselves
@@ -259,7 +279,7 @@ object GameInstaller {
                 val na = downloads?.obj("classifiers")?.obj(classifier)
                 if (na != null) {
                     val f = File(Dirs.libraries, na.str("path")!!)
-                    plan.tasks += Dl(na.str("url")!!, f, na.str("sha1"))
+                    plan.tasks += Dl(na.str("url")!!, f, na.str("sha1"), na.str("sha256"))
                     val exclude = lib.obj("extract")?.arr("exclude")?.map { it.asString } ?: emptyList()
                     plan.nativeJars += f to exclude
                 }
@@ -282,7 +302,7 @@ object GameInstaller {
         coroutineScope {
             list.map { t ->
                 async {
-                    sem.withPermit { Http.download(t.url, t.dest, t.sha1) }
+                    sem.withPermit { Http.download(t.url, t.dest, t.sha1, t.sha256) }
                     val n = done.incrementAndGet()
                     progress(n, list.size)
                     if (n % 25 == 0 || n == list.size) status("$label ($n/${list.size})")
