@@ -31,12 +31,15 @@ object Http {
         .connectTimeout(Duration.ofSeconds(20))
         .build()
 
-    fun getString(url: String): String {
-        val req = HttpRequest.newBuilder(URI.create(url))
+    fun getString(url: String): String = getString(url, emptyMap())
+
+    fun getString(url: String, headers: Map<String, String>): String {
+        val b = HttpRequest.newBuilder(URI.create(url))
             .timeout(Duration.ofSeconds(60))
             .header("User-Agent", UA)
-            .GET().build()
-        val res = client.send(req, HttpResponse.BodyHandlers.ofString())
+            .header("Accept", "application/json")
+        headers.forEach { (k, v) -> b.header(k, v) }
+        val res = client.send(b.GET().build(), HttpResponse.BodyHandlers.ofString())
         if (res.statusCode() !in 200..299) throw IOException("HTTP ${res.statusCode()} for $url")
         return res.body()
     }
