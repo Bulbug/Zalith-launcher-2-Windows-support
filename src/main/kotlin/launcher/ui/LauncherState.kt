@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import launcher.Account
 import launcher.AccountStore
 import launcher.AuthException
+import launcher.CrashManager
 import launcher.Dirs
 import launcher.DeviceCode
 import launcher.GameInstaller
@@ -35,7 +36,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** Navigation targets for the top bar rail. */
-enum class RailScreen { HOME, DOWNLOAD, DOWNLOAD_MANAGER, INSTANCES, SETTINGS }
+enum class RailScreen { HOME, DOWNLOAD, DOWNLOAD_MANAGER, CRASH_DIAGNOSTICS, INSTANCES, SETTINGS }
 
 /** Which category is open inside the Download screen. */
 enum class DownloadTab { MODS, MODPACKS, GAME, RESOURCE_PACKS, SAVES, SHADERS, SEARCH_ID, FAVORITES, CURSEFORGE_MODS, CURSEFORGE_MODPACKS }
@@ -358,6 +359,11 @@ class LauncherState(private val scope: CoroutineScope) {
                 status = "Minecraft is running"
                 val code = withContext(Dispatchers.IO) { proc.waitFor() }
                 status = "Game closed (exit code $code)"
+                // Create crash report if game crashed
+                if (code != 0) {
+                    val logFile = File(inst.dir, "latest.log").takeIf { it.isFile } ?: File(inst.dir, "logs/latest.log").takeIf { it.isFile }
+                    CrashManager.createCrashReport(inst, code, logFile?.absolutePath)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
