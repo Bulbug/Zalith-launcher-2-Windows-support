@@ -33,8 +33,8 @@ compose.desktop {
             packageName = "DeskLauncher"
             packageVersion = "0.5.0"
 
-            // Build formats suitable for this platform
-            targetFormats(TargetFormat.Exe, TargetFormat.Msi, TargetFormat.AppImage)
+            // Windows-only build formats
+            targetFormats(TargetFormat.Exe, TargetFormat.Msi)
 
             // the packaged app only contains the Java modules listed here (the launcher needs java.net.http)
             modules("java.net.http", "jdk.unsupported", "java.instrument")
