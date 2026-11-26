@@ -174,7 +174,7 @@ object CrashManager {
                     val json = JsonParser.parseString(content)
                     if (json.isJsonArray) {
                         val arr = json.asJsonArray
-                        if (arr.isNotEmpty()) {
+                        if (arr.size > 0) {
                             val obj = arr[0].asJsonObject
                             name = obj.get("name")?.asString ?: obj.get("modid")?.asString ?: name
                             version = obj.get("version")?.asString ?: version

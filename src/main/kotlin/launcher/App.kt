@@ -30,10 +30,15 @@ import launcher.ui.AppTheme
 import launcher.ui.LauncherState
 import launcher.ui.RailScreen
 import launcher.ui.TopBar
+import launcher.ui.screens.CrashDiagnosticsScreen
+import launcher.ui.screens.DownloadManagerScreen
 import launcher.ui.screens.DownloadScreen
 import launcher.ui.screens.HomeScreen
 import launcher.ui.screens.InstancesScreen
+import launcher.ui.screens.ModManagementScreen
+import launcher.ui.screens.ServerManagerScreen
 import launcher.ui.screens.SettingsScreen
+import launcher.ui.screens.WorldManagerScreen
 import launcher.ui.rememberAppTheme
 
 @Composable
@@ -76,6 +81,11 @@ fun App() {
                         when (screen) {
                             RailScreen.HOME -> HomeScreen(state, onNavigate = { state.screen = it }, scope = scope)
                             RailScreen.DOWNLOAD -> DownloadScreen(state)
+                            RailScreen.DOWNLOAD_MANAGER -> DownloadManagerScreen(state)
+                            RailScreen.CRASH_DIAGNOSTICS -> CrashDiagnosticsScreen(state)
+                            RailScreen.MOD_MANAGEMENT -> ModManagementScreen(state)
+                            RailScreen.SERVER_MANAGER -> ServerManagerScreen(state)
+                            RailScreen.WORLD_MANAGER -> WorldManagerScreen(state)
                             RailScreen.INSTANCES -> InstancesScreen(state)
                             RailScreen.SETTINGS -> SettingsScreen(state)
                         }

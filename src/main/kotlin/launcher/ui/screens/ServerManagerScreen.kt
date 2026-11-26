@@ -45,7 +45,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filed.ContentCopy
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable

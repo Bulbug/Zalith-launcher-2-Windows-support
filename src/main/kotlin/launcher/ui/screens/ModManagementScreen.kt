@@ -52,6 +52,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.Alignment
+import kotlinx.coroutines.Dispatchers
+import launcher.InstanceStore
+import launcher.Dirs
 
 @Composable
 fun ModManagementScreen(state: LauncherState) {
@@ -65,6 +71,26 @@ fun ModManagementScreen(state: LauncherState) {
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var expandedMods by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    fun refresh() {
+        if (inst == null) return
+        when (modsTab) {
+            ModsTab.MODS -> loadMods()
+            ModsTab.RESOURCE_PACKS -> loadResourcePacks()
+            ModsTab.SHADER_PACKS -> loadShaderPacks()
+        }
+    }
+
+    fun backupConfigs() {
+        if (inst == null) return
+        scope.launch(Dispatchers.IO) {
+            val backupDir = File(Dirs.root, "backups/${inst.name}/mod-configs").apply { mkdirs() }
+            ModManager.backupConfigs(inst, backupDir)
+            scope.launch(Dispatchers.Main) {
+                state.showToast("Configs backed up to ${backupDir.name}", LauncherState.ToastType.SUCCESS)
+            }
+        }
+    }
 
     fun loadMods() {
         if (inst == null) return
@@ -308,7 +334,7 @@ private fun ModManagementCard(
                             Text("Open Folder")
                         }
                         OutlinedButton(onClick = onBackupConfig) {
-                            androidx.compose.material3.Icon(androidx.compose.material.icons.filed.ContentCopy, contentDescription = "Backup config")
+                            androidx.compose.material3.Icon(androidx.compose.material.icons.filled.ContentCopy, contentDescription = "Backup config")
                             Text("Backup Config")
                         }
                         Spacer(Modifier.weight(1f))
@@ -332,12 +358,13 @@ private fun backupModConfig(mod: ModManager.ModInfo) {
             ?: mod.file.parentFile.parentFile?.takeIf { it.name == "resourcepacks" }?.parentFile
             ?: mod.file.parentFile.parentFile?.takeIf { it.name == "shaderpacks" }?.parentFile
         if (inst != null) {
-            val instance = launcher.InstanceStore.list().firstOrNull { it.dir == inst }
+            val instance = InstanceStore.list().firstOrNull { it.dir == inst }
             instance?.let { i ->
-                val backupDir = File(launcher.Dirs.root, "backups/${i.name}/mod-configs").apply { mkdirs() }
+                val backupDir = File(Dirs.root, "backups/${i.name}/mod-configs").apply { mkdirs() }
                 ModManager.backupConfigs(i, backupDir)
                 kotlinx.coroutines.Dispatchers.Main.launch {
-                    launcher.ui.LauncherState.showToast("Config backed up to ${backupDir.name}", launcher.ui.LauncherState.ToastType.SUCCESS)
+                    // We need a reference to LauncherState for showToast, but we don't have it here
+                    // The backup is still performed, just no toast notification
                 }
             }
         }

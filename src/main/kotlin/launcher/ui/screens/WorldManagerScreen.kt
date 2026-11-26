@@ -45,7 +45,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
-import androidx.compose.material.icons.filed.CloudDownload
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
