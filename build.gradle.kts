@@ -33,8 +33,12 @@ compose.desktop {
             packageName = "DeskLauncher"
             packageVersion = "0.5.0"
 
+            // macOS DMG requires a valid build version (different from package version)
+            // Format: MAJOR[.MINOR][.PATCH] - integer components only
+            dmgPackageVersion = "500"
+
             // Default package configuration
-            // On Windows CI, builds EXE/MSI, otherwise bundles all available formats
+            // Note: DMG build only works on macOS, will be skipped on Windows
             targetFormats(TargetFormat.AppImage, TargetFormat.Dmg, TargetFormat.Exe, TargetFormat.Msi)
 
             // the packaged app only contains the Java modules listed here (the launcher needs java.net.http)
